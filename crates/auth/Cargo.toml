@@ -1,0 +1,21 @@
+[package]
+name = "reporta-auth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+reporta-common.workspace = true
+reporta-db.workspace = true
+argon2 = "0.5.3"
+jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto"] }
+rand = "0.10.2"
+base64 = "0.23.1"
+sha2 = "0.11"
+hex = "0.4.3"
+sqlx.workspace = true
+rand_core = { version = "0.6", features = ["getrandom"] }
+thiserror.workspace = true
+serde.workspace = true
+chrono.workspace = true
+uuid.workspace = true

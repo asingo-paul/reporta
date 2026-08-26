@@ -1,0 +1,106 @@
+name: reporta
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reporta
+      POSTGRES_PASSWORD: reporta
+      POSTGRES_DB: reporta
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reporta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://reporta:reporta@postgres:5432/reporta
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads:/data/uploads
+    ports:
+      - "8080:8080"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://reporta:reporta@postgres:5432/reporta
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads:/data/uploads
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+  # Local-dev-only mail catcher so "Send to Client" can be exercised without
+  # a real SMTP account. Point SMTP_HOST=mailhog, SMTP_PORT=1025 at it and
+  # open http://localhost:8025 to see sent mail.
+  mailhog:
+    image: mailhog/mailhog:latest
+    profiles: ["dev"]
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Optional reverse proxy with automatic HTTPS for a real deployment.
+  # Requires CADDY_DOMAIN to be set to your real domain in .env, and DNS
+  # already pointed at this host — Let's Encrypt needs port 80/443 reachable.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["prod"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:
+  caddy_data:
+  caddy_config:
+
+
