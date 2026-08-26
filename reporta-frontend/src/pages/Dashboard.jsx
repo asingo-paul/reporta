@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { clientsAPI, reportsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
+import PageWrapper from '../components/PageWrapper';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
@@ -66,9 +67,11 @@ export default function Dashboard() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        </div>
+        <PageWrapper>
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+          </div>
+        </PageWrapper>
       </>
     );
   }
@@ -76,11 +79,12 @@ export default function Dashboard() {
   return (
     <>
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <PageWrapper>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's what's happening with your reports.</p>
+          <h1 className="text-3xl font-light tracking-wide text-gray-900 dark:text-white mb-2 uppercase">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400">Welcome back! Here's what's happening with your reports.</p>
         </div>
 
         {/* Stats Grid */}
@@ -110,34 +114,34 @@ export default function Dashboard() {
 
         {/* Quick Actions */}
         <div className="card mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
+          <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-4 uppercase">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Link
               to="/clients/new"
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center space-x-3 p-4 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-100 dark:hover:bg-dark-50 hover:border-gray-300 dark:hover:border-gray-700 transition-colors"
             >
-              <div className="h-10 w-10 rounded-lg bg-primary-100 flex items-center justify-center">
-                <Plus className="h-5 w-5 text-primary-600" />
+              <div className="h-10 w-10 rounded border border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                <Plus className="h-5 w-5 text-gray-900 dark:text-white" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">Add New Client</p>
-                <p className="text-sm text-gray-600">Create a client profile</p>
+                <p className="font-light text-gray-900 dark:text-white uppercase tracking-wider text-sm">Add New Client</p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">Create a client profile</p>
               </div>
-              <ArrowRight className="h-5 w-5 text-gray-400 ml-auto" />
+              <ArrowRight className="h-5 w-5 text-gray-400 dark:text-gray-500 ml-auto" />
             </Link>
 
             <Link
               to="/clients"
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center space-x-3 p-4 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-100 dark:hover:bg-dark-50 hover:border-gray-300 dark:hover:border-gray-700 transition-colors"
             >
-              <div className="h-10 w-10 rounded-lg bg-green-100 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-green-600" />
+              <div className="h-10 w-10 rounded border border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                <FileText className="h-5 w-5 text-gray-900 dark:text-white" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">Generate Report</p>
-                <p className="text-sm text-gray-600">Create a new report</p>
+                <p className="font-light text-gray-900 dark:text-white uppercase tracking-wider text-sm">Generate Report</p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">Create a new report</p>
               </div>
-              <ArrowRight className="h-5 w-5 text-gray-400 ml-auto" />
+              <ArrowRight className="h-5 w-5 text-gray-400 dark:text-gray-500 ml-auto" />
             </Link>
           </div>
         </div>
@@ -145,16 +149,16 @@ export default function Dashboard() {
         {/* Recent Reports */}
         <div className="card" id="recent">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Recent Reports</h2>
-            <Link to="/clients" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+            <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white uppercase">Recent Reports</h2>
+            <Link to="/clients" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm font-light uppercase tracking-wider text-xs transition-colors">
               View all →
             </Link>
           </div>
 
           {stats.recentReports.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 mb-4">No reports yet</p>
+              <FileText className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-600 dark:text-gray-400 mb-4">No reports yet</p>
               <Link to="/clients" className="btn btn-primary">
                 Create Your First Report
               </Link>
@@ -167,21 +171,22 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </PageWrapper>
     </>
   );
 }
 
 function StatCard({ icon, title, value, link, linkText }) {
   return (
-    <div className="card">
+    <div className="card hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
       <div className="flex items-start justify-between mb-4">
         <div>{icon}</div>
         <TrendingUp className="h-5 w-5 text-green-500" />
       </div>
-      <p className="text-gray-600 text-sm mb-1">{title}</p>
-      <p className="text-3xl font-bold text-gray-900 mb-3">{value}</p>
-      <a href={link} className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+      <p className="text-gray-600 dark:text-gray-400 text-sm mb-1 uppercase tracking-wider">{title}</p>
+      <p className="text-3xl font-light text-gray-900 dark:text-white mb-3">{value}</p>
+      <a href={link} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm font-light transition-colors uppercase tracking-wider text-xs">
         {linkText} →
       </a>
     </div>
@@ -191,19 +196,19 @@ function StatCard({ icon, title, value, link, linkText }) {
 function ReportItem({ report }) {
   const getStatusBadge = (status) => {
     const badges = {
-      completed: { class: 'badge-success', icon: CheckCircle, text: 'Completed' },
-      processing: { class: 'badge-warning', icon: Clock, text: 'Processing' },
-      pending: { class: 'badge-warning', icon: Clock, text: 'Pending' },
-      failed: { class: 'badge-error', icon: AlertCircle, text: 'Failed' },
+      completed: { class: 'border-green-600 text-green-600 dark:border-green-700 dark:text-green-400', icon: CheckCircle, text: 'Completed' },
+      processing: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Processing' },
+      pending: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Pending' },
+      failed: { class: 'border-red-600 text-red-600 dark:border-red-700 dark:text-red-400', icon: AlertCircle, text: 'Failed' },
     };
 
     const badge = badges[status] || badges.pending;
     const Icon = badge.icon;
 
     return (
-      <span className={`badge ${badge.class} flex items-center space-x-1`}>
+      <span className={`inline-flex items-center px-3 py-1 border rounded-full text-sm ${badge.class}`}>
         <Icon className="h-3 w-3" />
-        <span>{badge.text}</span>
+        <span className="ml-1">{badge.text}</span>
       </span>
     );
   };
@@ -211,22 +216,22 @@ function ReportItem({ report }) {
   return (
     <Link
       to={`/reports/${report.id}`}
-      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+      className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-100 dark:hover:bg-dark-50 hover:border-gray-300 dark:hover:border-gray-700 transition-colors"
     >
       <div className="flex items-center space-x-4 flex-1">
-        <div className="h-10 w-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
-          <FileText className="h-5 w-5 text-primary-600" />
+        <div className="h-10 w-10 rounded border border-gray-300 dark:border-gray-700 flex items-center justify-center flex-shrink-0">
+          <FileText className="h-5 w-5 text-gray-900 dark:text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 truncate">{report.clientName}</p>
-          <p className="text-sm text-gray-600">
+          <p className="font-light text-gray-900 dark:text-white truncate uppercase tracking-wide">{report.clientName}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">
             {format(new Date(report.start_date), 'MMM d')} - {format(new Date(report.end_date), 'MMM d, yyyy')}
           </p>
         </div>
       </div>
       <div className="flex items-center space-x-4">
         {getStatusBadge(report.status)}
-        <ArrowRight className="h-5 w-5 text-gray-400" />
+        <ArrowRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
       </div>
     </Link>
   );

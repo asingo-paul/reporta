@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { reportsAPI, clientsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
+import PageWrapper from '../components/PageWrapper';
 import { format } from 'date-fns';
 
 export default function ReportDetail() {
@@ -88,9 +89,11 @@ export default function ReportDetail() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        </div>
+        <PageWrapper>
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+          </div>
+        </PageWrapper>
       </>
     );
   }
@@ -99,31 +102,33 @@ export default function ReportDetail() {
     return (
       <>
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="card text-center py-12">
-            <p className="text-gray-600 mb-4">Report not found</p>
-            <Link to="/dashboard" className="btn btn-primary">
-              Back to Dashboard
-            </Link>
+        <PageWrapper>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="card text-center py-12">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">Report not found</p>
+              <Link to="/dashboard" className="btn btn-primary">
+                Back to Dashboard
+              </Link>
+            </div>
           </div>
-        </div>
+        </PageWrapper>
       </>
     );
   }
 
   const getStatusBadge = (status) => {
     const badges = {
-      completed: { class: 'badge-success', icon: CheckCircle, text: 'Completed' },
-      processing: { class: 'badge-warning', icon: Clock, text: 'Processing' },
-      pending: { class: 'badge-warning', icon: Clock, text: 'Pending' },
-      failed: { class: 'badge-error', icon: AlertCircle, text: 'Failed' },
+      completed: { class: 'border-green-600 text-green-600 dark:border-green-700 dark:text-green-400', icon: CheckCircle, text: 'Completed' },
+      processing: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Processing' },
+      pending: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Pending' },
+      failed: { class: 'border-red-600 text-red-600 dark:border-red-700 dark:text-red-400', icon: AlertCircle, text: 'Failed' },
     };
 
     const badge = badges[status] || badges.pending;
     const Icon = badge.icon;
 
     return (
-      <span className={`badge ${badge.class}`}>
+      <span className={`inline-flex items-center px-3 py-1 border rounded-full text-sm ${badge.class}`}>
         <Icon className="h-4 w-4 mr-1" />
         {badge.text}
       </span>
@@ -133,155 +138,157 @@ export default function ReportDetail() {
   return (
     <>
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Link
-            to={client ? `/clients/${client.id}` : '/dashboard'}
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to {client ? client.name : 'Dashboard'}
-          </Link>
+      <PageWrapper>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header */}
+          <div className="mb-8">
+            <Link
+              to={client ? `/clients/${client.id}` : '/dashboard'}
+              className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              <span className="text-xs uppercase tracking-wider">Back to {client ? client.name : 'Dashboard'}</span>
+            </Link>
 
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="flex items-center space-x-3 mb-2">
-                <h1 className="text-3xl font-bold text-gray-900">Report Details</h1>
-                {getStatusBadge(report.status)}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center space-x-3 mb-2">
+                  <h1 className="text-3xl font-light tracking-wide text-gray-900 dark:text-white uppercase">Report Details</h1>
+                  {getStatusBadge(report.status)}
+                </div>
+                <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                  <span className="flex items-center">
+                    <Calendar className="h-4 w-4 mr-1" />
+                    {format(new Date(report.start_date), 'MMM d, yyyy')} - {format(new Date(report.end_date), 'MMM d, yyyy')}
+                  </span>
+                  <span>Created {format(new Date(report.created_at), 'MMM d, yyyy')}</span>
+                </div>
               </div>
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                <span className="flex items-center">
-                  <Calendar className="h-4 w-4 mr-1" />
-                  {format(new Date(report.start_date), 'MMM d, yyyy')} - {format(new Date(report.end_date), 'MMM d, yyyy')}
-                </span>
-                <span>Created {format(new Date(report.created_at), 'MMM d, yyyy')}</span>
-              </div>
-            </div>
 
-            {report.status === 'completed' && (
-              <div className="flex space-x-3 mt-4 md:mt-0">
-                <button onClick={handleDownloadPDF} className="btn btn-outline inline-flex items-center">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </button>
-                <button onClick={() => setShowSendModal(true)} className="btn btn-primary inline-flex items-center">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send to Client
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* AI Summary */}
-        <div className="card mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">AI Summary</h2>
-            {report.status === 'completed' && !isEditing && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="btn btn-sm btn-outline inline-flex items-center"
-              >
-                <Edit2 className="h-4 w-4 mr-1" />
-                Edit
-              </button>
-            )}
-          </div>
-
-          {isEditing ? (
-            <div className="space-y-4">
-              <textarea
-                value={editedSummary}
-                onChange={(e) => setEditedSummary(e.target.value)}
-                className="input min-h-[200px]"
-                placeholder="Edit the AI-generated summary..."
-              />
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditedSummary(report.ai_summary || '');
-                  }}
-                  className="btn btn-outline inline-flex items-center"
-                  disabled={isSaving}
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveSummary}
-                  className="btn btn-primary inline-flex items-center"
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-1" />
-                      Save Changes
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="prose max-w-none">
-              {report.ai_summary ? (
-                <p className="text-gray-700 whitespace-pre-wrap">{report.ai_summary}</p>
-              ) : report.status === 'completed' ? (
-                <p className="text-gray-500 italic">No summary available</p>
-              ) : (
-                <p className="text-gray-500 italic">Summary will be generated when the report is complete</p>
+              {report.status === 'completed' && (
+                <div className="flex space-x-3 mt-4 md:mt-0">
+                  <button onClick={handleDownloadPDF} className="btn btn-secondary inline-flex items-center">
+                    <Download className="h-4 w-4 mr-2" />
+                    Download PDF
+                  </button>
+                  <button onClick={() => setShowSendModal(true)} className="btn btn-primary inline-flex items-center">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send to Client
+                  </button>
+                </div>
               )}
+            </div>
+          </div>
+
+          {/* AI Summary */}
+          <div className="card mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white uppercase">AI Summary</h2>
+              {report.status === 'completed' && !isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="btn btn-secondary text-xs py-2 px-6 inline-flex items-center"
+                >
+                  <Edit2 className="h-4 w-4 mr-1" />
+                  Edit
+                </button>
+              )}
+            </div>
+
+            {isEditing ? (
+              <div className="space-y-4">
+                <textarea
+                  value={editedSummary}
+                  onChange={(e) => setEditedSummary(e.target.value)}
+                  className="w-full px-4 py-3 bg-white dark:bg-dark border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-all rounded min-h-[200px]"
+                  placeholder="Edit the AI-generated summary..."
+                />
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditedSummary(report.ai_summary || '');
+                    }}
+                    className="btn btn-secondary inline-flex items-center"
+                    disabled={isSaving}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveSummary}
+                    className="btn btn-primary inline-flex items-center"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-1" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="prose max-w-none">
+                {report.ai_summary ? (
+                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{report.ai_summary}</p>
+                ) : report.status === 'completed' ? (
+                  <p className="text-gray-500 dark:text-gray-500 italic">No summary available</p>
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-500 italic">Summary will be generated when the report is complete</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Events/Metrics */}
+          {events.length > 0 && (
+            <div className="card mb-8">
+              <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-4 uppercase">Report Data</h2>
+              <div className="space-y-3">
+                {events.map((event, idx) => (
+                  <div key={idx} className="border border-gray-200 dark:border-gray-800 rounded p-4 hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">{event.metric_name || 'Metric'}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{event.description || 'No description'}</p>
+                      </div>
+                      {event.value && (
+                        <span className="text-2xl font-light text-gray-900 dark:text-white ml-4">
+                          {typeof event.value === 'number' ? event.value.toLocaleString() : event.value}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Processing Status */}
+          {report.status !== 'completed' && (
+            <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <div className="flex items-start space-x-3">
+                <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 animate-pulse" />
+                <div>
+                  <p className="font-medium text-blue-600 dark:text-blue-400 mb-1 uppercase tracking-wider">
+                    {report.status === 'processing' ? 'Report is being generated...' : 'Report is queued...'}
+                  </p>
+                  <p className="text-sm text-blue-600 dark:text-blue-500/80">
+                    This may take a few minutes. You'll be notified when it's ready.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
-
-        {/* Events/Metrics */}
-        {events.length > 0 && (
-          <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Report Data</h2>
-            <div className="space-y-3">
-              {events.map((event, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{event.metric_name || 'Metric'}</p>
-                      <p className="text-sm text-gray-600 mt-1">{event.description || 'No description'}</p>
-                    </div>
-                    {event.value && (
-                      <span className="text-2xl font-bold text-primary-600 ml-4">
-                        {typeof event.value === 'number' ? event.value.toLocaleString() : event.value}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Processing Status */}
-        {report.status !== 'completed' && (
-          <div className="card bg-blue-50 border-blue-200">
-            <div className="flex items-start space-x-3">
-              <Clock className="h-6 w-6 text-blue-600 flex-shrink-0 mt-0.5 animate-pulse" />
-              <div>
-                <p className="font-medium text-blue-900 mb-1">
-                  {report.status === 'processing' ? 'Report is being generated...' : 'Report is queued...'}
-                </p>
-                <p className="text-sm text-blue-700">
-                  This may take a few minutes. You'll be notified when it's ready.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      </PageWrapper>
 
       {/* Send Email Modal */}
       {showSendModal && (
@@ -320,25 +327,25 @@ function SendEmailModal({ reportId, clientEmail, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-lg w-full p-6 animate-slide-up">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Send Report via Email</h3>
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-800 rounded max-w-lg w-full p-6 animate-slide-up">
+        <h3 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-4 uppercase">Send Report via Email</h3>
 
         {success ? (
           <div className="text-center py-8">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <p className="text-green-700 font-medium">Email sent successfully!</p>
+            <CheckCircle className="h-12 w-12 text-green-600 dark:text-green-400 mx-auto mb-4" />
+            <p className="text-green-600 dark:text-green-400 font-medium">Email sent successfully!</p>
           </div>
         ) : (
           <form onSubmit={handleSend} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded">
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="label">
+              <label htmlFor="email" className="section-title">
                 Recipient Email *
               </label>
               <input
@@ -353,23 +360,23 @@ function SendEmailModal({ reportId, clientEmail, onClose }) {
             </div>
 
             <div>
-              <label htmlFor="message" className="label">
+              <label htmlFor="message" className="section-title">
                 Message (Optional)
               </label>
               <textarea
                 id="message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="input min-h-[100px]"
+                className="w-full px-4 py-3 bg-white dark:bg-dark border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-all rounded min-h-[100px]"
                 placeholder="Add a personal message..."
               />
             </div>
 
-            <div className="flex space-x-3 pt-4">
+            <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-800">
               <button
                 type="button"
                 onClick={onClose}
-                className="btn btn-outline flex-1"
+                className="btn btn-secondary flex-1"
                 disabled={isSending}
               >
                 Cancel
@@ -381,7 +388,7 @@ function SendEmailModal({ reportId, clientEmail, onClose }) {
               >
                 {isSending ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
                     Sending...
                   </>
                 ) : (

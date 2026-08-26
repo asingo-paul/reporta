@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { clientsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
+import PageWrapper from '../components/PageWrapper';
 
 export default function ClientForm() {
   const { clientId } = useParams();
@@ -67,9 +68,11 @@ export default function ClientForm() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        </div>
+        <PageWrapper>
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+          </div>
+        </PageWrapper>
       </>
     );
   }
@@ -77,26 +80,27 @@ export default function ClientForm() {
   return (
     <>
       <Navbar />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link to="/clients" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Clients
-        </Link>
+      <PageWrapper>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Link to="/clients" className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            <span className="text-xs uppercase tracking-wider">Back to Clients</span>
+          </Link>
 
-        <div className="card">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">
-            {isEditing ? 'Edit Client' : 'Add New Client'}
-          </h1>
+          <div className="card">
+            <h1 className="text-2xl font-light tracking-wide text-gray-900 dark:text-white mb-6 uppercase">
+              {isEditing ? 'Edit Client' : 'Add New Client'}
+            </h1>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-              {error}
-            </div>
-          )}
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded mb-6">
+                {error}
+              </div>
+            )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="name" className="label">
+              <label htmlFor="name" className="section-title">
                 Client Name *
               </label>
               <input
@@ -109,13 +113,13 @@ export default function ClientForm() {
                 placeholder="Acme Corporation"
                 required
               />
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                 The name of your client or organization
               </p>
             </div>
 
             <div>
-              <label htmlFor="email" className="label">
+              <label htmlFor="email" className="section-title">
                 Email Address
               </label>
               <input
@@ -127,16 +131,16 @@ export default function ClientForm() {
                 className="input"
                 placeholder="contact@acme.com"
               />
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                 Optional: Contact email for this client
               </p>
             </div>
 
-            <div className="flex space-x-3 pt-4 border-t">
+            <div className="flex space-x-3 pt-6 border-t border-gray-200 dark:border-gray-800">
               <button
                 type="button"
                 onClick={() => navigate('/clients')}
-                className="btn btn-outline flex-1"
+                className="btn btn-secondary flex-1"
                 disabled={isLoading}
               >
                 Cancel
@@ -148,7 +152,7 @@ export default function ClientForm() {
               >
                 {isLoading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
                     Saving...
                   </>
                 ) : (
@@ -162,6 +166,7 @@ export default function ClientForm() {
           </form>
         </div>
       </div>
+      </PageWrapper>
     </>
   );
 }
