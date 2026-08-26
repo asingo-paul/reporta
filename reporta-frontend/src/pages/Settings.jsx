@@ -4,6 +4,7 @@ import { Save, Upload, CreditCard, User, Palette, CheckCircle } from 'lucide-rea
 import { templateAPI, billingAPI, authAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('template');
@@ -65,6 +66,7 @@ export default function Settings() {
 }
 
 function TemplateSettings() {
+  const toast = useToast();
   const [template, setTemplate] = useState(null);
   const [formData, setFormData] = useState({
     company_name: '',
@@ -75,8 +77,6 @@ function TemplateSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
 
   useEffect(() => {
     loadTemplate();
@@ -116,8 +116,6 @@ function TemplateSettings() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
-    setError('');
-    setSuccess('');
 
     try {
       // Upload logo if changed
@@ -128,11 +126,10 @@ function TemplateSettings() {
       // Update template settings
       await templateAPI.update(formData);
       
-      setSuccess('Template settings saved successfully!');
-      setTimeout(() => setSuccess(''), 3000);
+      toast.success('Template settings saved successfully!');
     } catch (error) {
       console.error('Failed to save template:', error);
-      setError(error.response?.data?.error || 'Failed to save settings');
+      toast.error(error.response?.data?.error || 'Failed to save settings');
     } finally {
       setIsSaving(false);
     }
@@ -158,18 +155,6 @@ function TemplateSettings() {
         <p className="text-gray-600 dark:text-gray-400 mb-6">
           Customize how your reports look when sent to clients
         </p>
-
-        {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded mb-6">
-            {success}
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Company Name */}

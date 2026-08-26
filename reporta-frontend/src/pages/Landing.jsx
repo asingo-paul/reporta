@@ -28,13 +28,13 @@ export default function Landing() {
     <div className="min-h-screen bg-white dark:bg-dark transition-colors duration-300">
       {/* Luxury Header */}
       <header className="border-b border-gray-200 dark:border-gray-900 transition-colors fixed top-0 left-0 right-0 z-50 bg-white dark:bg-dark">
-        <nav className="max-w-7xl mx-auto px-6 py-6">
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="flex justify-between items-center">
-            <Link to="/" className="flex items-center space-x-3">
-              <img src="/reporta.png" alt="Reporta" className="h-8 w-8 opacity-90" />
-              <span className="text-xl font-light tracking-widest text-gray-900 dark:text-white uppercase">Reporta</span>
+            <Link to="/" className="flex items-center space-x-2 sm:space-x-3">
+              <img src="/reporta.png" alt="Reporta" className="h-6 w-6 sm:h-8 sm:w-8 opacity-90" />
+              <span className="text-base sm:text-xl font-light tracking-widest text-gray-900 dark:text-white uppercase">Reporta</span>
             </Link>
-            <div className="hidden md:flex items-center space-x-8">
+            <div className="hidden lg:flex items-center space-x-8">
               <a href="#vision" className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                 Vision
               </a>
@@ -45,7 +45,7 @@ export default function Landing() {
                 Pricing
               </a>
             </div>
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3 sm:space-x-6">
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
@@ -61,13 +61,13 @@ export default function Landing() {
               
               <Link 
                 to="/login" 
-                className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors hidden sm:inline"
               >
                 Login
               </Link>
               <Link 
                 to="/signup" 
-                className="btn btn-primary"
+                className="btn btn-primary text-xs sm:text-sm px-3 py-2 sm:px-4 sm:py-2"
               >
                 <span>Get Started</span>
               </Link>
@@ -77,7 +77,7 @@ export default function Landing() {
       </header>
 
       {/* Hero Section - Luxury Style */}
-      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-20">
+      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-20 px-4 sm:px-6">
         {/* Background Image with Overlay */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white dark:via-dark/50 dark:to-dark z-10 transition-colors"></div>
@@ -89,48 +89,48 @@ export default function Landing() {
           />
         </div>
 
-        <div className="relative z-20 max-w-6xl mx-auto px-6 text-center">
+        <div className="relative z-20 max-w-6xl mx-auto text-center">
           {/* Real-time Stats */}
-          <div className="flex justify-center items-center space-x-8 mb-6 animate-fade-in">
+          <div className="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-8 mb-6 animate-fade-in">
             <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
               <TrendingUp className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-light tracking-wider">
+              <span className="text-xs sm:text-sm font-light tracking-wider">
                 <span className="text-gray-900 dark:text-white font-medium">{stats.clients.toLocaleString()}</span> Clients
               </span>
             </div>
-            <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
+            <div className="hidden sm:block w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
             <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
               <TrendingUp className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-light tracking-wider">
+              <span className="text-xs sm:text-sm font-light tracking-wider">
                 <span className="text-gray-900 dark:text-white font-medium">{stats.reports.toLocaleString()}</span> Reports
               </span>
             </div>
-            <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
+            <div className="hidden sm:block w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
             <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
               <TrendingUp className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-light tracking-wider">
+              <span className="text-xs sm:text-sm font-light tracking-wider">
                 <span className="text-gray-900 dark:text-white font-medium">{stats.templates.toLocaleString()}</span> Templates
               </span>
             </div>
           </div>
 
-          <p className="section-title mb-8 animate-fade-in" style={{ animationDelay: '0.1s' }}>Intelligent Reporting</p>
+          <p className="section-title mb-4 sm:mb-8 animate-fade-in text-sm sm:text-base" style={{ animationDelay: '0.1s' }}>Intelligent Reporting</p>
           
-          <h1 className="heading-xl mb-8 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-light tracking-wide text-gray-900 dark:text-white mb-6 sm:mb-8 animate-fade-in leading-tight" style={{ animationDelay: '0.2s' }}>
             MARKETING REPORTS
             <br />
             REDEFINED
           </h1>
           
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-12 font-light leading-relaxed animate-fade-in" style={{ animationDelay: '0.4s' }}>
+          <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-8 sm:mb-12 font-light leading-relaxed animate-fade-in px-4" style={{ animationDelay: '0.4s' }}>
             Transform complex data into elegant insights. AI-powered analysis meets 
             sophisticated design to deliver reports that command attention.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in" style={{ animationDelay: '0.6s' }}>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in px-4" style={{ animationDelay: '0.6s' }}>
             <Link 
               to="/signup" 
-              className="btn btn-primary group"
+              className="btn btn-primary group w-full sm:w-auto justify-center"
             >
               <span>Begin Your Journey</span>
               <ArrowRight className="ml-3 h-4 w-4 group-hover:translate-x-1 transition-transform" />
@@ -143,19 +143,19 @@ export default function Landing() {
             </a>
           </div>
 
-          <p className="text-xs text-gray-500 dark:text-gray-600 mt-8 tracking-wider">14-DAY COMPLIMENTARY TRIAL</p>
+          <p className="text-xs text-gray-500 dark:text-gray-600 mt-6 sm:mt-8 tracking-wider">14-DAY COMPLIMENTARY TRIAL</p>
         </div>
 
         {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 hidden sm:block">
           <div className="w-px h-16 bg-gradient-to-b from-gray-400 dark:from-gray-600 to-transparent"></div>
         </div>
       </section>
 
       {/* Vision Section */}
-      <section id="vision" className="py-32 border-t border-gray-200 dark:border-gray-900 transition-colors">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-3 gap-16">
+      <section id="vision" className="py-16 sm:py-32 border-t border-gray-200 dark:border-gray-900 transition-colors px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 sm:gap-16">
             <div>
               <h2 className="heading-md mb-6">THE VISION</h2>
               <p className="text-gray-400 font-light leading-relaxed">
@@ -184,9 +184,9 @@ export default function Landing() {
       </section>
 
       {/* Features/Portfolio Section */}
-      <section id="portfolio" className="py-32 border-t border-gray-200 dark:border-gray-900 transition-colors">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-20">
+      <section id="portfolio" className="py-16 sm:py-32 border-t border-gray-200 dark:border-gray-900 transition-colors px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12 sm:mb-20">
             <p className="section-title mb-4">Our Capabilities</p>
             <h2 className="heading-lg">What We Offer</h2>
           </div>
@@ -264,9 +264,9 @@ export default function Landing() {
       </section>
 
       {/* Pricing Section */}
-      <section id="contact" className="py-32 border-t border-gray-200 dark:border-gray-900 transition-colors">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
+      <section id="contact" className="py-16 sm:py-32 border-t border-gray-200 dark:border-gray-900 transition-colors px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 sm:gap-16 items-center">
             <div>
               <p className="section-title mb-8">Investment</p>
               <h2 className="heading-lg mb-8">
@@ -328,8 +328,8 @@ export default function Landing() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-32 border-t border-gray-200 dark:border-gray-900 transition-colors">
-        <div className="max-w-4xl mx-auto px-6 text-center">
+      <section className="py-16 sm:py-32 border-t border-gray-200 dark:border-gray-900 transition-colors px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto text-center">
           <p className="section-title mb-8">Express Your Interest</p>
           <h2 className="heading-lg mb-8">
             EXPERIENCE
@@ -352,24 +352,24 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-900 py-12 transition-colors">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-6 md:space-y-0">
+      <footer className="border-t border-gray-200 dark:border-gray-900 py-8 sm:py-12 transition-colors px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex items-center space-x-3">
               <img src="/reporta.png" alt="Reporta" className="h-6 w-6 opacity-70" />
               <span className="text-sm font-light tracking-widest text-gray-600 dark:text-gray-600 uppercase">Reporta</span>
             </div>
             
-            <div className="flex items-center space-x-8">
+            <div className="flex items-center space-x-4 sm:space-x-8 flex-wrap justify-center">
               <Link to="/terms" className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors">
                 Terms
               </Link>
               <Link to="/privacy" className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors">
                 Privacy
               </Link>
-              <a href="#" className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors">
+              <Link to="/contact" className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors">
                 Contact
-              </a>
+              </Link>
             </div>
 
             <p className="text-xs text-gray-700 dark:text-gray-700 tracking-wider">© 2026 REPORTA</p>

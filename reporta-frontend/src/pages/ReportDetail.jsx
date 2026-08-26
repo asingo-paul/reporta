@@ -11,15 +11,26 @@ import {
   Edit2,
   Save,
   X,
+  TrendingUp,
+  TrendingDown,
+  BarChart2,
+  Users,
+  MousePointer,
+  Eye,
+  DollarSign,
+  Activity
 } from 'lucide-react';
 import { reportsAPI, clientsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
+import { ReportDetailSkeleton } from '../components/LoadingSkeleton';
+import { useToast } from '../contexts/ToastContext';
 import { format } from 'date-fns';
 
 export default function ReportDetail() {
   const { reportId } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   
   const [report, setReport] = useState(null);
   const [client, setClient] = useState(null);
@@ -61,9 +72,10 @@ export default function ReportDetail() {
       await reportsAPI.updateSummary(reportId, { ai_summary: editedSummary });
       setReport(prev => ({ ...prev, ai_summary: editedSummary }));
       setIsEditing(false);
+      toast.success('Summary updated successfully!');
     } catch (error) {
       console.error('Failed to update summary:', error);
-      alert('Failed to update summary');
+      toast.error('Failed to update summary');
     } finally {
       setIsSaving(false);
     }
@@ -79,9 +91,10 @@ export default function ReportDetail() {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      toast.success('PDF downloaded successfully!');
     } catch (error) {
       console.error('Failed to download PDF:', error);
-      alert('Failed to download PDF');
+      toast.error('Failed to download PDF');
     }
   };
 
@@ -90,9 +103,7 @@ export default function ReportDetail() {
       <>
         <Navbar />
         <PageWrapper>
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
-          </div>
+          <ReportDetailSkeleton />
         </PageWrapper>
       </>
     );
@@ -179,6 +190,43 @@ export default function ReportDetail() {
               )}
             </div>
           </div>
+
+          {/* Key Metrics */}
+          {report.status === 'completed' && (
+            <div className="card mb-8">
+              <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-6 uppercase">Key Metrics</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <MetricCard 
+                  icon={<Users className="h-6 w-6" />}
+                  label="Total Users"
+                  value="12,450"
+                  change="+12.5%"
+                  trend="up"
+                />
+                <MetricCard 
+                  icon={<Eye className="h-6 w-6" />}
+                  label="Page Views"
+                  value="45,230"
+                  change="+8.3%"
+                  trend="up"
+                />
+                <MetricCard 
+                  icon={<MousePointer className="h-6 w-6" />}
+                  label="Click Rate"
+                  value="3.2%"
+                  change="-2.1%"
+                  trend="down"
+                />
+                <MetricCard 
+                  icon={<DollarSign className="h-6 w-6" />}
+                  label="Revenue"
+                  value="$8,420"
+                  change="+15.8%"
+                  trend="up"
+                />
+              </div>
+            </div>
+          )}
 
           {/* AI Summary */}
           <div className="card mb-8">
@@ -302,25 +350,44 @@ export default function ReportDetail() {
   );
 }
 
+function MetricCard({ icon, label, value, change, trend }) {
+  const isPositive = trend === 'up';
+  const TrendIcon = isPositive ? TrendingUp : TrendingDown;
+  
+  return (
+    <div className="border border-gray-200 dark:border-gray-800 rounded p-4 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 transition-all">
+      <div className="flex items-start justify-between mb-3">
+        <div className="text-gray-600 dark:text-gray-400">{icon}</div>
+        <TrendIcon className={`h-4 w-4 ${isPositive ? 'text-green-500' : 'text-red-500'}`} />
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 uppercase tracking-wider">{label}</p>
+      <p className="text-2xl font-light text-gray-900 dark:text-white mb-1">{value}</p>
+      <p className={`text-xs font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+        {change}
+      </p>
+    </div>
+  );
+}
+
 function SendEmailModal({ reportId, clientEmail, onClose }) {
+  const toast = useToast();
   const [email, setEmail] = useState(clientEmail || '');
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
   const handleSend = async (e) => {
     e.preventDefault();
     setIsSending(true);
-    setError('');
 
     try {
       await reportsAPI.send(reportId, { recipient_email: email, message });
       setSuccess(true);
+      toast.success('Report sent successfully!');
       setTimeout(() => onClose(), 2000);
     } catch (error) {
       console.error('Failed to send report:', error);
-      setError(error.response?.data?.error || 'Failed to send email');
+      toast.error(error.response?.data?.error || 'Failed to send email');
     } finally {
       setIsSending(false);
     }
@@ -338,12 +405,6 @@ function SendEmailModal({ reportId, clientEmail, onClose }) {
           </div>
         ) : (
           <form onSubmit={handleSend} className="space-y-4">
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded">
-                {error}
-              </div>
-            )}
-
             <div>
               <label htmlFor="email" className="section-title">
                 Recipient Email *

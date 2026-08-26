@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, User, Trash2, Edit } from 'lucide-react';
+import { Search, User, Trash2, Edit } from 'lucide-react';
 import { clientsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
+import { ClientsListSkeleton } from '../components/LoadingSkeleton';
+import { EmptyClients, EmptySearch } from '../components/EmptyStates';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Clients() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [clients, setClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,8 +49,10 @@ export default function Clients() {
       await clientsAPI.delete(clientId);
       setClients(clients.filter(c => c.id !== clientId));
       setShowDeleteModal(null);
+      toast.success('Client deleted successfully');
     } catch (error) {
       console.error('Failed to delete client:', error);
+      toast.error('Failed to delete client');
     }
   };
 
@@ -55,9 +61,7 @@ export default function Clients() {
       <>
         <Navbar />
         <PageWrapper>
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
-          </div>
+          <ClientsListSkeleton />
         </PageWrapper>
       </>
     );
@@ -75,7 +79,9 @@ export default function Clients() {
             <p className="text-gray-600 dark:text-gray-400">Manage your clients and their integrations</p>
           </div>
           <Link to="/clients/new" className="btn btn-primary mt-4 md:mt-0 inline-flex items-center">
-            <Plus className="h-5 w-5 mr-2" />
+            <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
             Add Client
           </Link>
         </div>
@@ -96,18 +102,11 @@ export default function Clients() {
 
         {/* Clients List */}
         {filteredClients.length === 0 ? (
-          <div className="card text-center py-12">
-            <User className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              {searchQuery ? 'No clients found' : 'No clients yet'}
-            </p>
-            {!searchQuery && (
-              <Link to="/clients/new" className="btn btn-primary">
-                <Plus className="h-5 w-5 mr-2" />
-                Add Your First Client
-              </Link>
-            )}
-          </div>
+          searchQuery ? (
+            <EmptySearch query={searchQuery} />
+          ) : (
+            <EmptyClients />
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredClients.map((client) => (
