@@ -11,8 +11,6 @@ use reporta_billing::BillingService;
 use reporta_common::{init_tracing, Config};
 use reporta_crypto::TokenCipher;
 use reporta_integrations::ConnectionService;
-use tower_governor::governor::GovernorConfigBuilder;
-use tower_governor::GovernorLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
@@ -52,19 +50,6 @@ async fn main() -> anyhow::Result<()> {
         mailer: Arc::new(mailer),
     };
 
-    // Rate limit auth endpoints specifically hard (brute-force/credential
-    // stuffing target) — a burst of 5 with 1 refill every 2s per client IP.
-    // NOTE: `PeerIpKeyExtractor` (the default) reads the socket's peer
-    // address. Behind a reverse proxy, configure it to trust
-    // `X-Forwarded-For` from that proxy only, or this limits by the proxy's
-    // IP instead of the real client.
-    let auth_governor = GovernorConfigBuilder::default()
-        .per_second(2)
-        .burst_size(5)
-        .finish()
-        .expect("valid governor config");
-    let auth_rate_limit = GovernorLayer::new(auth_governor);
-
     let cors = if config.is_production() {
         CorsLayer::new()
             .allow_origin(
@@ -80,7 +65,6 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = routes::build_router(state.clone())
-        .layer(auth_rate_limit)
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 

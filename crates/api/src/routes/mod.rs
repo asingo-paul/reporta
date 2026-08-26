@@ -65,12 +65,16 @@ pub fn build_router(state: AppState) -> Router {
         .route("/subscription", get(billing::get_subscription))
         .route("/webhook", post(billing::webhook));
 
-    Router::new()
+    let api_router = Router::new()
+        .route("/health", get(|| async { "OK" }))
         .nest("/auth", auth_routes)
         .nest("/clients", client_routes)
         .nest("/template", template_routes)
         .nest("/integrations", integration_routes)
         .nest("/reports", report_routes)
-        .nest("/billing", billing_routes)
+        .nest("/billing", billing_routes);
+
+    Router::new()
+        .nest("/api/v1", api_router)
         .with_state(state)
 }

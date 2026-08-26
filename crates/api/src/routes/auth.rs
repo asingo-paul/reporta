@@ -57,28 +57,53 @@ pub async fn signup(
     jar: CookieJar,
     Json(req): Json<SignupRequest>,
 ) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    validate_strength(&req.password).map_err(|e| AppError::Validation(e.to_string()))?;
+    tracing::info!("signup attempt for email: {}", req.email);
+    
+    req.validate().map_err(|e| {
+        tracing::error!("validation error: {}", e);
+        AppError::Validation(e.to_string())
+    })?;
+    
+    validate_strength(&req.password).map_err(|e| {
+        tracing::error!("password strength validation error: {}", e);
+        AppError::Validation(e.to_string())
+    })?;
 
     if User::find_by_email(&state.pool, &req.email).await?.is_some() {
+        tracing::warn!("signup failed: email already exists: {}", req.email);
         return Err(AppError::Conflict("an account with this email already exists".to_string()));
     }
 
-    let password_hash = hash_password(&req.password).map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
-    let user = User::create(&state.pool, &req.email, &password_hash, &req.name).await?;
+    let password_hash = hash_password(&req.password).map_err(|e| {
+        tracing::error!("password hashing error: {}", e);
+        AppError::Internal(anyhow::anyhow!(e))
+    })?;
+    
+    let user = User::create(&state.pool, &req.email, &password_hash, &req.name).await.map_err(|e| {
+        tracing::error!("user creation error: {:?}", e);
+        e
+    })?;
 
     let access_token = state
         .jwt
         .issue_access_token(user.id)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+        .map_err(|e| {
+            tracing::error!("access token generation error: {}", e);
+            AppError::Internal(anyhow::anyhow!(e))
+        })?;
     let refresh_token = state
         .refresh_tokens
         .issue(&state.pool, user.id)
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+        .map_err(|e| {
+            tracing::error!("refresh token generation error: {}", e);
+            AppError::Internal(anyhow::anyhow!(e))
+        })?;
 
+    let user_id = user.id;
     let jar = jar.add(refresh_cookie(&state, refresh_token, state.config.refresh_token_ttl_secs));
     let body = json!(AuthResponse { access_token, user: user.into() });
+    tracing::info!("signup successful for user_id: {}", user_id);
     Ok((jar, Json(body)))
 }
 
@@ -94,27 +119,49 @@ pub async fn login(
     jar: CookieJar,
     Json(req): Json<LoginRequest>,
 ) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
-    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    tracing::info!("login attempt for email: {}", req.email);
+    
+    req.validate().map_err(|e| {
+        tracing::error!("validation error: {}", e);
+        AppError::Validation(e.to_string())
+    })?;
 
     let user = User::find_by_email(&state.pool, &req.email)
-        .await?
-        .ok_or(AppError::Unauthorized)?;
+        .await
+        .map_err(|e| {
+            tracing::error!("database error finding user: {:?}", e);
+            e
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("login failed: user not found for email: {}", req.email);
+            AppError::Unauthorized
+        })?;
+    
     if !verify_password(&req.password, &user.password_hash) {
+        tracing::warn!("login failed: invalid password for email: {}", req.email);
         return Err(AppError::Unauthorized);
     }
 
     let access_token = state
         .jwt
         .issue_access_token(user.id)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+        .map_err(|e| {
+            tracing::error!("access token generation error: {}", e);
+            AppError::Internal(anyhow::anyhow!(e))
+        })?;
     let refresh_token = state
         .refresh_tokens
         .issue(&state.pool, user.id)
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+        .map_err(|e| {
+            tracing::error!("refresh token generation error: {}", e);
+            AppError::Internal(anyhow::anyhow!(e))
+        })?;
 
+    let user_id = user.id;
     let jar = jar.add(refresh_cookie(&state, refresh_token, state.config.refresh_token_ttl_secs));
     let body = json!(AuthResponse { access_token, user: user.into() });
+    tracing::info!("login successful for user_id: {}", user_id);
     Ok((jar, Json(body)))
 }
 

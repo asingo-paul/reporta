@@ -9,6 +9,10 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
+import ClientForm from './pages/ClientForm';
+import GenerateReport from './pages/GenerateReport';
+import ReportDetail from './pages/ReportDetail';
+import Settings from './pages/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -35,6 +39,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
+        {/* Clients */}
         <Route
           path="/clients"
           element={
@@ -44,10 +50,54 @@ function App() {
           }
         />
         <Route
+          path="/clients/new"
+          element={
+            <ProtectedRoute>
+              <ClientForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/clients/:clientId"
           element={
             <ProtectedRoute>
               <ClientDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clients/:clientId/edit"
+          element={
+            <ProtectedRoute>
+              <ClientForm />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Reports */}
+        <Route
+          path="/clients/:clientId/reports/new"
+          element={
+            <ProtectedRoute>
+              <GenerateReport />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports/:reportId"
+          element={
+            <ProtectedRoute>
+              <ReportDetail />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Settings */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />
