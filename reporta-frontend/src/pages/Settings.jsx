@@ -65,13 +65,28 @@ export default function Settings() {
   );
 }
 
+// The 10 standard, toggleable report metrics. Keys must match the backend's
+// `MetricKind::as_str()` exactly so `enabled_metrics` round-trips cleanly.
+const METRIC_OPTIONS = [
+  { key: 'impressions', label: 'Impressions' },
+  { key: 'clicks', label: 'Clicks' },
+  { key: 'spend', label: 'Spend' },
+  { key: 'ctr', label: 'CTR' },
+  { key: 'cpc', label: 'CPC' },
+  { key: 'conversions', label: 'Conversions' },
+  { key: 'conversion_rate', label: 'Conversion Rate' },
+  { key: 'cost_per_conversion', label: 'Cost per Conversion' },
+  { key: 'revenue', label: 'Revenue' },
+  { key: 'roas', label: 'ROAS' },
+];
+
 function TemplateSettings() {
   const toast = useToast();
-  const [template, setTemplate] = useState(null);
   const [formData, setFormData] = useState({
-    company_name: '',
-    primary_color: '#6366F1',
-    secondary_color: '#F59E0B',
+    brand_primary_color: '#6366F1',
+    brand_secondary_color: '#F59E0B',
+    enabled_metrics: METRIC_OPTIONS.map((m) => m.key),
+    intro_blurb: '',
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -85,19 +100,35 @@ function TemplateSettings() {
   const loadTemplate = async () => {
     try {
       const response = await templateAPI.get();
-      setTemplate(response.data);
+      const data = response.data;
       setFormData({
-        company_name: response.data.company_name || '',
-        primary_color: response.data.primary_color || '#6366F1',
-        secondary_color: response.data.secondary_color || '#F59E0B',
+        brand_primary_color: data.brand_primary_color || '#6366F1',
+        brand_secondary_color: data.brand_secondary_color || '#F59E0B',
+        enabled_metrics:
+          data.enabled_metrics && data.enabled_metrics.length > 0
+            ? data.enabled_metrics
+            : METRIC_OPTIONS.map((m) => m.key),
+        intro_blurb: data.intro_blurb || '',
       });
-      if (response.data.logo_url) {
-        setLogoPreview(response.data.logo_url);
+      if (data.logo_url) {
+        setLogoPreview(data.logo_url);
+        loadLogo(data.logo_url);
       }
     } catch (error) {
       console.error('Failed to load template:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // The backend returns the stored logo *filename* (not a public URL), so we
+  // fetch the bytes and render them as a local object URL.
+  const loadLogo = async (filename) => {
+    try {
+      const response = await templateAPI.getLogo(filename);
+      setLogoPreview(URL.createObjectURL(response.data));
+    } catch (error) {
+      console.error('Failed to load logo:', error);
     }
   };
 
@@ -113,19 +144,29 @@ function TemplateSettings() {
     }
   };
 
+  const toggleMetric = (key) => {
+    setFormData((prev) => {
+      const has = prev.enabled_metrics.includes(key);
+      const next = has
+        ? prev.enabled_metrics.filter((k) => k !== key)
+        : [...prev.enabled_metrics, key];
+      return { ...prev, enabled_metrics: next };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
 
     try {
-      // Upload logo if changed
+      // Upload logo if changed (backend returns the fresh template).
       if (logoFile) {
         await templateAPI.uploadLogo(logoFile);
       }
 
-      // Update template settings
+      // Update template settings with the real contract fields.
       await templateAPI.update(formData);
-      
+
       toast.success('Template settings saved successfully!');
     } catch (error) {
       console.error('Failed to save template:', error);
@@ -137,7 +178,7 @@ function TemplateSettings() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   if (isLoading) {
@@ -157,22 +198,22 @@ function TemplateSettings() {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Company Name */}
+          {/* Intro Blurb */}
           <div>
-            <label htmlFor="company_name" className="section-title">
-              Company Name
+            <label htmlFor="intro_blurb" className="section-title">
+              Intro Blurb
             </label>
-            <input
-              type="text"
-              id="company_name"
-              name="company_name"
-              value={formData.company_name}
+            <textarea
+              id="intro_blurb"
+              name="intro_blurb"
+              value={formData.intro_blurb}
               onChange={handleChange}
-              className="input"
-              placeholder="Your Company Name"
+              rows={3}
+              className="input resize-none"
+              placeholder="A short welcome message shown at the top of each report. Use [Client Name] to insert the client's name."
             />
             <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-              This will appear on all generated reports
+              Appears at the top of every generated report.
             </p>
           </div>
 
@@ -206,22 +247,22 @@ function TemplateSettings() {
           {/* Colors */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="primary_color" className="section-title">
+              <label htmlFor="brand_primary_color" className="section-title">
                 Primary Color
               </label>
               <div className="flex items-center space-x-3">
                 <input
                   type="color"
-                  id="primary_color"
-                  name="primary_color"
-                  value={formData.primary_color}
+                  id="brand_primary_color"
+                  name="brand_primary_color"
+                  value={formData.brand_primary_color}
                   onChange={handleChange}
                   className="h-10 w-20 border border-gray-300 dark:border-gray-700 rounded cursor-pointer bg-white dark:bg-dark"
                 />
                 <input
                   type="text"
-                  value={formData.primary_color}
-                  onChange={(e) => setFormData(prev => ({ ...prev, primary_color: e.target.value }))}
+                  value={formData.brand_primary_color}
+                  onChange={(e) => setFormData(prev => ({ ...prev, brand_primary_color: e.target.value }))}
                   className="input flex-1"
                   placeholder="#6366F1"
                 />
@@ -230,27 +271,63 @@ function TemplateSettings() {
             </div>
 
             <div>
-              <label htmlFor="secondary_color" className="section-title">
+              <label htmlFor="brand_secondary_color" className="section-title">
                 Secondary Color
               </label>
               <div className="flex items-center space-x-3">
                 <input
                   type="color"
-                  id="secondary_color"
-                  name="secondary_color"
-                  value={formData.secondary_color}
+                  id="brand_secondary_color"
+                  name="brand_secondary_color"
+                  value={formData.brand_secondary_color}
                   onChange={handleChange}
                   className="h-10 w-20 border border-gray-300 dark:border-gray-700 rounded cursor-pointer bg-white dark:bg-dark"
                 />
                 <input
                   type="text"
-                  value={formData.secondary_color}
-                  onChange={(e) => setFormData(prev => ({ ...prev, secondary_color: e.target.value }))}
+                  value={formData.brand_secondary_color}
+                  onChange={(e) => setFormData(prev => ({ ...prev, brand_secondary_color: e.target.value }))}
                   className="input flex-1"
                   placeholder="#F59E0B"
                 />
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Accent color for charts</p>
+            </div>
+          </div>
+
+          {/* Metrics */}
+          <div>
+            <label className="section-title">Report Metrics</label>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+              Choose which metrics appear in generated reports
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {METRIC_OPTIONS.map((metric) => {
+                const enabled = formData.enabled_metrics.includes(metric.key);
+                return (
+                  <button
+                    type="button"
+                    key={metric.key}
+                    onClick={() => toggleMetric(metric.key)}
+                    className={`flex items-center justify-between px-4 py-3 border text-xs uppercase tracking-wider transition-colors ${
+                      enabled
+                        ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white bg-gray-100 dark:bg-dark-50'
+                        : 'border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-500 hover:border-gray-400 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <span>{metric.label}</span>
+                    <span
+                      className={`w-4 h-4 border flex items-center justify-center text-[10px] transition-colors ${
+                        enabled
+                          ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white'
+                          : 'border-gray-300 dark:border-gray-700'
+                      }`}
+                    >
+                      {enabled ? '✓' : ''}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -262,11 +339,11 @@ function TemplateSettings() {
                 {logoPreview && (
                   <img src={logoPreview} alt="Logo" className="h-12 w-auto" />
                 )}
-                <h3 className="text-xl font-light tracking-wide" style={{ color: formData.primary_color }}>
-                  {formData.company_name || 'Your Company Name'}
+                <h3 className="text-xl font-light tracking-wide" style={{ color: formData.brand_primary_color }}>
+                  Report Template
                 </h3>
               </div>
-              <div className="h-2 rounded" style={{ backgroundColor: formData.primary_color }}></div>
+              <div className="h-2 rounded" style={{ backgroundColor: formData.brand_primary_color }}></div>
               <div className="mt-4 space-y-2">
                 <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4"></div>
                 <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-1/2"></div>
