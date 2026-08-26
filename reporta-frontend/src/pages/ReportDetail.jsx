@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Download,
@@ -13,12 +13,10 @@ import {
   X,
   TrendingUp,
   TrendingDown,
-  BarChart2,
   Users,
   MousePointer,
   Eye,
-  DollarSign,
-  Activity
+  DollarSign
 } from 'lucide-react';
 import { reportsAPI, clientsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
@@ -29,12 +27,10 @@ import { format } from 'date-fns';
 
 export default function ReportDetail() {
   const { reportId } = useParams();
-  const navigate = useNavigate();
   const toast = useToast();
   
   const [report, setReport] = useState(null);
   const [client, setClient] = useState(null);
-  const [events, setEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editedSummary, setEditedSummary] = useState('');
@@ -43,17 +39,13 @@ export default function ReportDetail() {
 
   useEffect(() => {
     loadReportData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportId]);
 
   const loadReportData = async () => {
     try {
-      const [reportRes, eventsRes] = await Promise.all([
-        reportsAPI.get(reportId),
-        reportsAPI.getEvents(reportId),
-      ]);
-
+      const reportRes = await reportsAPI.get(reportId);
       setReport(reportRes.data);
-      setEvents(eventsRes.data);
       setEditedSummary(reportRes.data.ai_summary || '');
 
       // Load client data
@@ -65,6 +57,38 @@ export default function ReportDetail() {
       setIsLoading(false);
     }
   };
+
+  // Subscribe to the backend's live SSE status feed while the report is not
+  // yet in a terminal state, so the progress banner reflects *real* stages
+  // ("Pulling data... Analyzing trends... Building PDF...") instead of a
+  // static "queued/processing" snapshot.
+  useEffect(() => {
+    if (!report) return;
+    const status = report.status;
+    if (status === 'completed' || status === 'failed') return;
+
+    const cancel = reportsAPI.streamStatus(
+      reportId,
+      {
+        onEvent: (payload) => {
+          setReport((prev) => ({
+            ...prev,
+            status: payload.status ?? prev.status,
+            progress_message: payload.progress_message ?? prev.progress_message,
+            error: payload.error ?? prev.error,
+          }));
+          // Reach a terminal state via the stream -> refresh the full record
+          // so the details/PDF area unlocks.
+          if (payload.status === 'completed' || payload.status === 'failed') {
+            reportsAPI.get(reportId).then((res) => setReport(res.data)).catch(() => {});
+          }
+        },
+        onError: (err) => console.error('Status stream error:', err),
+      }
+    );
+    return cancel;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportId, report?.status]);
 
   const handleSaveSummary = async () => {
     setIsSaving(true);
@@ -129,9 +153,11 @@ export default function ReportDetail() {
 
   const getStatusBadge = (status) => {
     const badges = {
+      pending: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Queued' },
+      pulling_data: { class: 'border-blue-600 text-blue-600 dark:border-blue-700 dark:text-blue-400', icon: Clock, text: 'Pulling Data' },
+      analyzing: { class: 'border-blue-600 text-blue-600 dark:border-blue-700 dark:text-blue-400', icon: Clock, text: 'Analyzing' },
+      rendering: { class: 'border-blue-600 text-blue-600 dark:border-blue-700 dark:text-blue-400', icon: Clock, text: 'Building PDF' },
       completed: { class: 'border-green-600 text-green-600 dark:border-green-700 dark:text-green-400', icon: CheckCircle, text: 'Completed' },
-      processing: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Processing' },
-      pending: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Pending' },
       failed: { class: 'border-red-600 text-red-600 dark:border-red-700 dark:text-red-400', icon: AlertCircle, text: 'Failed' },
     };
 
@@ -295,41 +321,34 @@ export default function ReportDetail() {
             )}
           </div>
 
-          {/* Events/Metrics */}
-          {events.length > 0 && (
-            <div className="card mb-8">
-              <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-4 uppercase">Report Data</h2>
-              <div className="space-y-3">
-                {events.map((event, idx) => (
-                  <div key={idx} className="border border-gray-200 dark:border-gray-800 rounded p-4 hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white">{event.metric_name || 'Metric'}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{event.description || 'No description'}</p>
-                      </div>
-                      {event.value && (
-                        <span className="text-2xl font-light text-gray-900 dark:text-white ml-4">
-                          {typeof event.value === 'number' ? event.value.toLocaleString() : event.value}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Processing Status */}
-          {report.status !== 'completed' && (
+          {/* Processing Status - driven by the live SSE feed */}
+          {(report.status === 'pending' || report.status === 'pulling_data' || report.status === 'analyzing' || report.status === 'rendering') && (
             <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
               <div className="flex items-start space-x-3">
                 <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 animate-pulse" />
                 <div>
                   <p className="font-medium text-blue-600 dark:text-blue-400 mb-1 uppercase tracking-wider">
-                    {report.status === 'processing' ? 'Report is being generated...' : 'Report is queued...'}
+                    {report.progress_message || 'Report is being generated...'}
                   </p>
                   <p className="text-sm text-blue-600 dark:text-blue-500/80">
                     This may take a few minutes. You'll be notified when it's ready.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Failed Status */}
+          {report.status === 'failed' && (
+            <div className="card bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-red-600 dark:text-red-400 mb-1 uppercase tracking-wider">
+                    Report Failed
+                  </p>
+                  <p className="text-sm text-red-600 dark:text-red-500/80">
+                    {report.error || 'There was an error generating this report. Please try again.'}
                   </p>
                 </div>
               </div>
@@ -343,6 +362,7 @@ export default function ReportDetail() {
         <SendEmailModal
           reportId={reportId}
           clientEmail={client?.email}
+          clientName={client?.name}
           onClose={() => setShowSendModal(false)}
         />
       )}
@@ -369,10 +389,9 @@ function MetricCard({ icon, label, value, change, trend }) {
   );
 }
 
-function SendEmailModal({ reportId, clientEmail, onClose }) {
+function SendEmailModal({ reportId, clientEmail, clientName, onClose }) {
   const toast = useToast();
   const [email, setEmail] = useState(clientEmail || '');
-  const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -381,7 +400,11 @@ function SendEmailModal({ reportId, clientEmail, onClose }) {
     setIsSending(true);
 
     try {
-      await reportsAPI.send(reportId, { recipient_email: email, message });
+      // Backend contract: `SendReportRequest` requires `to_email` + `to_name`.
+      await reportsAPI.send(reportId, {
+        to_email: email,
+        to_name: clientName || email.split('@')[0] || 'Client',
+      });
       setSuccess(true);
       toast.success('Report sent successfully!');
       setTimeout(() => onClose(), 2000);
@@ -417,19 +440,6 @@ function SendEmailModal({ reportId, clientEmail, onClose }) {
                 className="input"
                 placeholder="client@example.com"
                 required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="message" className="section-title">
-                Message (Optional)
-              </label>
-              <textarea
-                id="message"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                className="w-full px-4 py-3 bg-white dark:bg-dark border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-all rounded min-h-[100px]"
-                placeholder="Add a personal message..."
               />
             </div>
 

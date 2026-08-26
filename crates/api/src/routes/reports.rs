@@ -5,7 +5,7 @@ use axum::extract::{Path, State};
 use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::Json;
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use reporta_common::{AppError, AppResult};
 use reporta_db::models::{Client, Report, ReportJob, User};
 use serde::Deserialize;
@@ -16,6 +16,46 @@ use crate::extractors::AuthUser;
 use crate::state::AppState;
 
 const REPORT_PERIOD_DAYS: i64 = 30;
+/// Upper bound on a requested reporting window (guards against absurd ranges
+/// that would hammer every connected provider for little value).
+const MAX_REPORT_PERIOD_DAYS: i64 = 366;
+
+#[derive(Debug, Deserialize)]
+pub struct GenerateReportRequest {
+    /// Optional `YYYY-MM-DD` range. When omitted, defaults to the trailing
+    /// 30 days up to today (matching the legacy behavior).
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
+}
+
+fn resolve_period(
+    req: Option<Json<GenerateReportRequest>>,
+) -> AppResult<(NaiveDate, NaiveDate)> {
+    let today = Utc::now().date_naive();
+
+    if let Some(req) = req {
+        if let Some(start_date) = req.start_date {
+            let end_date = req.end_date.unwrap_or(today);
+
+            if end_date > today {
+                return Err(AppError::Validation("end_date cannot be in the future".to_string()));
+            }
+            if start_date > end_date {
+                return Err(AppError::Validation("start_date must not be after end_date".to_string()));
+            }
+            if end_date.signed_duration_since(start_date).num_days() >= MAX_REPORT_PERIOD_DAYS {
+                return Err(AppError::Validation(format!(
+                    "report period cannot exceed {MAX_REPORT_PERIOD_DAYS} days"
+                )));
+            }
+            return Ok((start_date, end_date));
+        }
+    }
+
+    let period_end = today;
+    let period_start = period_end - chrono::Duration::days(REPORT_PERIOD_DAYS - 1);
+    Ok((period_start, period_end))
+}
 
 /// Kicks off report generation: creates the `reports` row (status
 /// `pending`) and enqueues a job for the worker to pick up. Returns
@@ -25,13 +65,13 @@ pub async fn generate_report(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
     Path(client_id): Path<Uuid>,
+    body: Option<Json<GenerateReportRequest>>,
 ) -> AppResult<Json<Report>> {
     Client::find_for_user(&state.pool, client_id, user_id)
         .await?
         .ok_or(AppError::NotFound)?;
 
-    let period_end = Utc::now().date_naive();
-    let period_start = period_end - chrono::Duration::days(REPORT_PERIOD_DAYS - 1);
+    let (period_start, period_end) = resolve_period(body)?;
 
     let report = Report::create(&state.pool, client_id, user_id, period_start, period_end).await?;
     ReportJob::enqueue(&state.pool, report.id).await?;

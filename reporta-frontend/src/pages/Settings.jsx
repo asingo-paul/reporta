@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Save, Upload, CreditCard, User, Palette, CheckCircle } from 'lucide-react';
 import { templateAPI, billingAPI, authAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
@@ -7,7 +7,11 @@ import PageWrapper from '../components/PageWrapper';
 import { useToast } from '../contexts/ToastContext';
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('template');
+  const [searchParams] = useSearchParams();
+  const tabHint = searchParams.get('tab');
+  // Preserve an explicit `?tab=billing` (used by the Stripe callback
+  // redirect) over the default tab.
+  const [activeTab, setActiveTab] = useState(tabHint === 'billing' ? 'billing' : 'template');
   
   return (
     <>
