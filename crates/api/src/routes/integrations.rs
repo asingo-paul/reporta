@@ -70,7 +70,7 @@ pub async fn callback(
 ) -> Redirect {
     let provider = provider.as_str();
     let fail = |reason: &str| Redirect::to(&format!(
-        "{}/app/connections?provider={provider}&error={}",
+        "{}/clients/callback?provider={provider}&error={}",
         state.config.frontend_base_url,
         urlencoding_lite(reason)
     ));
@@ -88,7 +88,7 @@ pub async fn callback(
         .await
     {
         Ok(connection) => Redirect::to(&format!(
-            "{}/app/clients/{}/connections?connected={provider}",
+            "{}/clients/{}/connections?connected={provider}",
             state.config.frontend_base_url, connection.client_id
         )),
         Err(e) => {

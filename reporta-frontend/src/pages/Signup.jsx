@@ -60,25 +60,25 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-dark flex items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-white dark:bg-dark flex items-center justify-center px-6 py-12 transition-colors">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-12">
           <Link to="/" className="inline-flex items-center space-x-3 mb-8">
             <img src="/reporta.png" alt="Reporta" className="h-10 w-10 opacity-90" />
-            <span className="text-2xl font-light tracking-widest text-white uppercase">Reporta</span>
+            <span className="text-2xl font-light tracking-widest text-gray-900 dark:text-white uppercase">Reporta</span>
           </Link>
           <p className="section-title mb-4">Begin Your Journey</p>
-          <h1 className="text-3xl font-light tracking-wide text-white">CREATE ACCOUNT</h1>
-          <p className="text-sm text-gray-500 mt-4">14 days complimentary access</p>
+          <h1 className="text-3xl font-light tracking-wide text-gray-900 dark:text-white">CREATE ACCOUNT</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mt-4">14 days complimentary access</p>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="mb-8 border border-red-900 bg-red-950/20 p-4">
+          <div className="mb-8 border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-4">
             <div className="flex items-start space-x-3">
-              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400">{error}</p>
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
           </div>
         )}
@@ -120,18 +120,18 @@ export default function Signup() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
             {formData.password && formData.password.length < 8 && (
-              <p className="text-xs text-gray-600 mt-2">Minimum 8 characters required</p>
+              <p className="text-xs text-gray-600 dark:text-gray-600 mt-2">Minimum 8 characters required</p>
             )}
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-xs uppercase tracking-widest text-gray-500 mb-3">
+            <label htmlFor="confirmPassword" className="block text-xs uppercase tracking-widest text-gray-500 dark:text-gray-500 mb-3">
               Confirm Password
             </label>
             <div className="relative">
@@ -148,7 +148,7 @@ export default function Signup() {
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -162,7 +162,7 @@ export default function Signup() {
           >
             {isLoading ? (
               <span className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-3"></div>
                 <span>Creating account...</span>
               </span>
             ) : (
@@ -175,16 +175,16 @@ export default function Signup() {
         </form>
 
         <div className="mt-12 text-center">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-500">
             Already have an account?{' '}
-            <Link to="/login" className="text-white hover:text-gray-300 transition-colors">
+            <Link to="/login" className="text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
               Sign in
             </Link>
           </p>
         </div>
 
         <div className="mt-8 text-center">
-          <Link to="/" className="text-xs uppercase tracking-widest text-gray-600 hover:text-white transition-colors">
+          <Link to="/" className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors">
             ← Back to Home
           </Link>
         </div>
