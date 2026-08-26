@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, TrendingUp, Sun, Moon } from 'lucide-react';
+import { ArrowRight, TrendingUp, Sun, Moon, ChevronDown, ChevronRight, Landmark, FileBarChart } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function Landing() {
   const { theme, toggleTheme } = useTheme();
+  const [productsOpen, setProductsOpen] = useState(false);
   const [stats, setStats] = useState({
     clients: 1247,
     reports: 3892,
@@ -35,6 +36,42 @@ export default function Landing() {
               <span className="text-base sm:text-xl font-light tracking-widest text-gray-900 dark:text-white uppercase">Reporta</span>
             </Link>
             <div className="hidden lg:flex items-center space-x-8">
+              {/* Products Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setProductsOpen(!productsOpen)}
+                  className="flex items-center space-x-1 text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  aria-expanded={productsOpen}
+                  aria-haspopup="true"
+                >
+                  <span>Products</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${productsOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {productsOpen && (
+                  <div className="absolute left-0 mt-4 w-72 bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-900 shadow-2xl animate-fade-in">
+                    <Link
+                      to="/products/report-generator"
+                      onClick={() => setProductsOpen(false)}
+                      className="flex items-center space-x-3 px-6 py-4 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors"
+                    >
+                      <FileBarChart className="h-4 w-4" />
+                      <span className="uppercase tracking-wider text-xs">Report Generator</span>
+                      <ChevronRight className="h-3 w-3 ml-auto" />
+                    </Link>
+                    <Link
+                      to="/products/bank-reconciliations"
+                      onClick={() => setProductsOpen(false)}
+                      className="flex items-center space-x-3 px-6 py-4 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors border-t border-gray-200 dark:border-gray-900"
+                    >
+                      <Landmark className="h-4 w-4" />
+                      <span className="uppercase tracking-wider text-xs">Bank Reconciliations</span>
+                      <ChevronRight className="h-3 w-3 ml-auto" />
+                    </Link>
+                  </div>
+                )}
+              </div>
+
               <a href="#vision" className="text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                 Vision
               </a>

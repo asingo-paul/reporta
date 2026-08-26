@@ -4,6 +4,7 @@ pub mod clients;
 pub mod integrations;
 pub mod reports;
 pub mod template;
+pub mod uploads;
 
 use axum::routing::{delete, get, patch, post};
 use axum::Router;
@@ -65,6 +66,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/subscription", get(billing::get_subscription))
         .route("/webhook", post(billing::webhook));
 
+    let upload_routes =
+        Router::new().route("/{filename}", get(uploads::serve_upload));
+
     let api_router = Router::new()
         .route("/health", get(|| async { "OK" }))
         .nest("/auth", auth_routes)
@@ -72,7 +76,8 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/template", template_routes)
         .nest("/integrations", integration_routes)
         .nest("/reports", report_routes)
-        .nest("/billing", billing_routes);
+        .nest("/billing", billing_routes)
+        .nest("/uploads", upload_routes);
 
     Router::new()
         .nest("/api/v1", api_router)

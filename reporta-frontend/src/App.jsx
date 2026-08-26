@@ -18,6 +18,8 @@ import ReportDetail from './pages/ReportDetail';
 import Settings from './pages/Settings';
 import ConnectionCallback from './pages/ConnectionCallback';
 import Checkout from './pages/Checkout';
+import ReportGenerator from './pages/ReportGenerator';
+import BankReconciliations from './pages/BankReconciliations';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Contact from './pages/Contact';
@@ -45,6 +47,8 @@ function App() {
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/products/report-generator" element={<ReportGenerator />} />
+              <Route path="/products/bank-reconciliations" element={<BankReconciliations />} />
 
               {/* Protected Routes */}
               <Route

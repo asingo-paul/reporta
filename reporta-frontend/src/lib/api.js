@@ -99,6 +99,11 @@ export const templateAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  // Fetches the agency's uploaded logo as a blob so it can be displayed via
+  // URL.createObjectURL. The file lives under the backend's UPLOAD_DIR and is
+  // only accessible to the owning user.
+  getLogo: (filename) =>
+    api.get(`/uploads/${filename}`, { responseType: 'blob' }),
 };
 
 // Integrations APIs
