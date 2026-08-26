@@ -1,0 +1,21 @@
+[package]
+name = "reporta-integrations"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+reporta-common.workspace = true
+reporta-db.workspace = true
+reporta-crypto.workspace = true
+thiserror.workspace = true
+reqwest.workspace = true
+oauth2 = "5.0.0"
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+async-trait.workspace = true
+url = "2.5.8"
+tracing.workspace = true
+sqlx.workspace = true

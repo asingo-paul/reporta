@@ -1,0 +1,51 @@
+[package]
+name = "reporta-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "reporta-api"
+path = "src/main.rs"
+
+[[bin]]
+name = "reporta-worker"
+path = "src/bin/worker.rs"
+
+[dependencies]
+reporta-common.workspace = true
+reporta-db.workspace = true
+reporta-auth.workspace = true
+reporta-crypto.workspace = true
+reporta-integrations.workspace = true
+reporta-billing.workspace = true
+reporta-insights.workspace = true
+reporta-pdf.workspace = true
+reporta-reports.workspace = true
+
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+dotenvy.workspace = true
+validator.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+
+axum = { version = "0.8.9", features = ["multipart", "macros"] }
+axum-extra = { version = "0.12.6", features = ["cookie", "typed-header"] }
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["cors", "trace", "compression-gzip", "limit", "fs"] }
+tower_governor = "0.8.0"
+lettre = { version = "0.11.23", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+infer = "0.22.0"
+tokio-stream = "0.1.19"
+async-stream = "0.3.6"
+futures-core = "0.3"
+time = "0.3"
+regex = "1.13.1"

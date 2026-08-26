@@ -1,0 +1,38 @@
+# Multi-stage build producing both the `reporta-api` and `reporta-worker`
+# binaries from one image; docker-compose selects which to run via `target`.
+
+FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
+WORKDIR /app
+
+FROM chef AS planner
+COPY crates ./crates
+COPY migrations ./migrations
+WORKDIR /app/crates
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+COPY --from=planner /app/crates/recipe.json crates/recipe.json
+WORKDIR /app/crates
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY crates ./
+COPY migrations ../migrations
+RUN cargo build --release --bin reporta-api --bin reporta-worker
+
+FROM debian:bookworm-slim AS runtime-base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN useradd --system --create-home --uid 10001 reporta
+COPY --from=builder /app/crates/target/release/reporta-api /usr/local/bin/reporta-api
+COPY --from=builder /app/crates/target/release/reporta-worker /usr/local/bin/reporta-worker
+COPY migrations /app/migrations
+RUN mkdir -p /data/uploads && chown -R reporta:reporta /data /app
+USER reporta
+WORKDIR /app
+
+FROM runtime-base AS api
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/reporta-api"]
+
+FROM runtime-base AS worker
+ENTRYPOINT ["/usr/local/bin/reporta-worker"]
