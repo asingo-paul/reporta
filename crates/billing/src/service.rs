@@ -56,8 +56,8 @@ impl BillingService {
     /// the hosted checkout URL to redirect the browser to.
     pub async fn create_checkout_session(&self, pool: &PgPool, user: &User) -> Result<String, BillingError> {
         let customer_id = self.ensure_stripe_customer(pool, user).await?;
-        let success_url = format!("{}/app/billing?checkout=success", self.frontend_base_url);
-        let cancel_url = format!("{}/app/billing?checkout=cancelled", self.frontend_base_url);
+        let success_url = format!("{}/settings?tab=billing&checkout=success", self.frontend_base_url);
+        let cancel_url = format!("{}/settings?tab=billing&checkout=cancelled", self.frontend_base_url);
         let client_reference_id = user.id.to_string();
 
         let mut params = CreateCheckoutSession::new();
@@ -80,7 +80,7 @@ impl BillingService {
     /// their subscription without the agency needing to build billing UI.
     pub async fn create_portal_session(&self, pool: &PgPool, user: &User) -> Result<String, BillingError> {
         let customer_id = self.ensure_stripe_customer(pool, user).await?;
-        let return_url = format!("{}/app/billing", self.frontend_base_url);
+        let return_url = format!("{}/settings?tab=billing", self.frontend_base_url);
 
         let mut params = CreateBillingPortalSession::new(customer_id);
         params.return_url = Some(&return_url);

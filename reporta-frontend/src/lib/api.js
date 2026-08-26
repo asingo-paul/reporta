@@ -85,7 +85,61 @@ export const reportsAPI = {
   updateSummary: (reportId, data) => api.patch(`/reports/${reportId}`, data),
   downloadPDF: (reportId) => api.get(`/reports/${reportId}/pdf`, { responseType: 'blob' }),
   send: (reportId, data) => api.post(`/reports/${reportId}/send`, data),
-  getEvents: (reportId) => api.get(`/reports/${reportId}/events`),
+  /**
+   * Live Server-Sent Events status stream for a report. The backend emits a
+   * JSON payload `{ status, progress_message, error? }` roughly every 1.5s
+   * (and once on terminal), so we can show *real* progress rather than a fake
+   * timer. Calls `onEvent(payload)` per event and returns a cancel function.
+   *
+   * Uses `fetch` + manual reader because the endpoint requires an
+   * `Authorization` header, which the native `EventSource` API cannot send.
+   */
+  streamStatus(reportId, { onEvent, onError } = {}) {
+    const token = localStorage.getItem('access_token');
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/reports/${reportId}/events`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
+        });
+        if (!res.ok || !res.body) {
+          throw new Error(`status stream returned ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // SSE events are separated by a blank line; each is a `data: <json>`.
+          let sep;
+          while ((sep = buffer.indexOf('\n\n')) !== -1) {
+            const chunk = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            const dataLine = chunk
+              .split('\n')
+              .find((line) => line.startsWith('data:'));
+            if (!dataLine) continue;
+            try {
+              const payload = JSON.parse(dataLine.slice(5).trim());
+              if (payload && typeof payload === 'object') onEvent?.(payload);
+            } catch {
+              // ignore malformed frame
+            }
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') onError?.(err);
+      }
+    })();
+
+    return () => controller.abort();
+  },
 };
 
 // Template APIs
