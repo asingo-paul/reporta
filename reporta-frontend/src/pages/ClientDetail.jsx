@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   FileText, 
-  Plus, 
   ExternalLink,
   AlertCircle,
   CheckCircle,
@@ -192,7 +191,9 @@ export default function ClientDetail() {
                 to={`/clients/${clientId}/reports/new`} 
                 className="btn btn-primary inline-flex items-center"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
                 Generate Report
               </Link>
             </div>

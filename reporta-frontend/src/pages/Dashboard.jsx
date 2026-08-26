@@ -7,12 +7,14 @@ import {
   CheckCircle,
   AlertCircle,
   TrendingUp,
-  Plus,
   ArrowRight
 } from 'lucide-react';
 import { clientsAPI, reportsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
+import { DashboardSkeleton } from '../components/LoadingSkeleton';
+import { EmptyDashboard } from '../components/EmptyStates';
+import OnboardingModal from '../components/OnboardingModal';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
@@ -68,9 +70,7 @@ export default function Dashboard() {
       <>
         <Navbar />
         <PageWrapper>
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
-          </div>
+          <DashboardSkeleton />
         </PageWrapper>
       </>
     );
@@ -80,7 +80,11 @@ export default function Dashboard() {
     <>
       <Navbar />
       <PageWrapper>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <OnboardingModal />
+        {stats.totalClients === 0 ? (
+          <EmptyDashboard />
+        ) : (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-light tracking-wide text-gray-900 dark:text-white mb-2 uppercase">Dashboard</h1>
@@ -121,7 +125,9 @@ export default function Dashboard() {
               className="flex items-center space-x-3 p-4 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-100 dark:hover:bg-dark-50 hover:border-gray-300 dark:hover:border-gray-700 transition-colors"
             >
               <div className="h-10 w-10 rounded border border-gray-300 dark:border-gray-700 flex items-center justify-center">
-                <Plus className="h-5 w-5 text-gray-900 dark:text-white" />
+                <svg className="h-5 w-5 text-gray-900 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
               </div>
               <div>
                 <p className="font-light text-gray-900 dark:text-white uppercase tracking-wider text-sm">Add New Client</p>
@@ -172,6 +178,7 @@ export default function Dashboard() {
           )}
         </div>
         </div>
+        )}
       </PageWrapper>
     </>
   );
