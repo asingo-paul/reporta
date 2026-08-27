@@ -10,6 +10,8 @@ pub enum IntegrationError {
     RefreshFailed(String),
     #[error("connection not found")]
     ConnectionNotFound,
+    #[error("connected, but this app can't see any ad account/property on that login — check you used the right account and granted access, then disconnect and reconnect")]
+    NoAccessibleAccount,
     #[error("upstream API error ({provider}): {message}")]
     Upstream { provider: &'static str, message: String },
     #[error(transparent)]

@@ -23,6 +23,10 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    # Publish to the host so the API can also be run natively via `cargo run`
+    # (see scripts/dev.sh) while only Postgres/Redis stay in Docker.
+    ports:
+      - "127.0.0.1:6379:6379"
 
   api:
     build:

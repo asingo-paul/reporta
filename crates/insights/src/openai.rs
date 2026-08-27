@@ -63,7 +63,13 @@ impl OpenAIClient {
     /// `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`.
     pub fn new(api_key: String, model: String, endpoint: String) -> Self {
         Self {
-            http: reqwest::Client::new(),
+            // Bound worst-case LLM latency; reqwest has no default timeout,
+            // so a stalled completion endpoint would hang report generation.
+            http: reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .timeout(std::time::Duration::from_secs(60))
+                .build()
+                .expect("failed to build OpenAI HTTP client"),
             api_key,
             model,
             endpoint,

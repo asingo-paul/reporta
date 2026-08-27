@@ -13,6 +13,7 @@ reporta-integrations.workspace = true
 reporta-crypto.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
+futures-util.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 serde.workspace = true

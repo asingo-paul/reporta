@@ -16,6 +16,7 @@ import { clientsAPI, reportsAPI, integrationsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
 import { format } from 'date-fns';
+import { formatSafeDate } from '../lib/formatDate';
 
 export default function ClientDetail() {
   const { clientId } = useParams();
@@ -247,7 +248,7 @@ function ReportRow({ report }) {
     >
       <div>
         <p className="font-light text-gray-900 dark:text-white uppercase tracking-wide">
-          {format(new Date(report.start_date), 'MMM d, yyyy')} - {format(new Date(report.end_date), 'MMM d, yyyy')}
+          {formatSafeDate(report.period_start)} - {formatSafeDate(report.period_end)}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-500">
           Created {format(new Date(report.created_at), 'MMM d, yyyy')}

@@ -24,6 +24,7 @@ import PageWrapper from '../components/PageWrapper';
 import { ReportDetailSkeleton } from '../components/LoadingSkeleton';
 import { useToast } from '../contexts/ToastContext';
 import { format } from 'date-fns';
+import { formatSafeDate } from '../lib/formatDate';
 
 export default function ReportDetail() {
   const { reportId } = useParams();
@@ -196,7 +197,7 @@ export default function ReportDetail() {
                 <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
                   <span className="flex items-center">
                     <Calendar className="h-4 w-4 mr-1" />
-                    {format(new Date(report.start_date), 'MMM d, yyyy')} - {format(new Date(report.end_date), 'MMM d, yyyy')}
+                    {formatSafeDate(report.period_start)} - {formatSafeDate(report.period_end)}
                   </span>
                   <span>Created {format(new Date(report.created_at), 'MMM d, yyyy')}</span>
                 </div>

@@ -29,7 +29,14 @@ impl Default for ConnectionService {
 impl ConnectionService {
     pub fn new() -> Self {
         Self {
-            http: reqwest::Client::new(),
+            // Timeouts bound worst-case provider latency: without them a hung
+            // Graph/GA4/Ads call would stall a report generation forever
+            // (reqwest has NO default request timeout).
+            http: reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("failed to build provider HTTP client"),
         }
     }
 
@@ -135,7 +142,13 @@ impl ConnectionService {
         };
         let (external_account_id, external_account_name) = match account {
             Some((id, name)) => (Some(id), name),
-            None => (None, None),
+            // Fail fast here rather than storing a connection row whose
+            // missing account id only blows up later, mid-report-generation,
+            // as an unrelated-looking "connection not found".
+            None => {
+                tracing::warn!(?provider, "OAuth succeeded but provider returned no accessible account");
+                return Err(IntegrationError::NoAccessibleAccount);
+            }
         };
 
         let access_enc = cipher.encrypt(&access_token)?;
@@ -250,7 +263,7 @@ impl ConnectionService {
         let account_id = connection
             .external_account_id
             .as_deref()
-            .ok_or(IntegrationError::ConnectionNotFound)?;
+            .ok_or(IntegrationError::NoAccessibleAccount)?;
 
         let metrics = match connection.provider {
             Provider::Meta => {

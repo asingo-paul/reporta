@@ -78,15 +78,25 @@ impl ReportGenerationService {
 
         let mut current_totals = RawMetrics::default();
         let mut previous_totals = RawMetrics::default();
-        for connection in &connections {
-            let current = self
-                .integrations
-                .fetch_metrics(pool, config, cipher, connection, report.period_start, report.period_end)
-                .await?;
-            let previous = self
-                .integrations
-                .fetch_metrics(pool, config, cipher, connection, previous_start, previous_end)
-                .await?;
+        // Pull every (connection × {current, previous period}) pair
+        // CONCURRENTLY instead of serially — with several integrations
+        // connected this cuts the data-pull stage to roughly the slowest
+        // single provider call rather than the sum of all of them.
+        let pulls: Vec<_> = connections
+            .iter()
+            .map(|connection| async move {
+                let current = self
+                    .integrations
+                    .fetch_metrics(pool, config, cipher, connection, report.period_start, report.period_end)
+                    .await?;
+                let previous = self
+                    .integrations
+                    .fetch_metrics(pool, config, cipher, connection, previous_start, previous_end)
+                    .await?;
+                Ok::<(RawMetrics, RawMetrics), ReportError>((current, previous))
+            })
+            .collect();
+        for (current, previous) in futures_util::future::try_join_all(pulls).await? {
             current_totals = current_totals + current;
             previous_totals = previous_totals + previous;
         }

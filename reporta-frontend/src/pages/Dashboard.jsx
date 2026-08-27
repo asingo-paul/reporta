@@ -15,7 +15,7 @@ import PageWrapper from '../components/PageWrapper';
 import { DashboardSkeleton } from '../components/LoadingSkeleton';
 import { EmptyDashboard } from '../components/EmptyStates';
 import OnboardingModal from '../components/OnboardingModal';
-import { format } from 'date-fns';
+import { formatSafeDate } from '../lib/formatDate';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -232,7 +232,7 @@ function ReportItem({ report }) {
         <div className="flex-1 min-w-0">
           <p className="font-light text-gray-900 dark:text-white truncate uppercase tracking-wide">{report.clientName}</p>
           <p className="text-sm text-gray-500 dark:text-gray-500">
-            {format(new Date(report.start_date), 'MMM d')} - {format(new Date(report.end_date), 'MMM d, yyyy')}
+            {formatSafeDate(report.period_start, 'MMM d')} - {formatSafeDate(report.period_end, 'MMM d, yyyy')}
           </p>
         </div>
       </div>
