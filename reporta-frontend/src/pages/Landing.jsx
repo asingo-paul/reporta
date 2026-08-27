@@ -238,7 +238,7 @@ export default function Landing() {
               </div>
               <h3 className="text-2xl font-light tracking-wide text-gray-900 dark:text-white mb-4">AI-Powered Insights</h3>
               <p className="text-gray-600 dark:text-gray-400 font-light leading-relaxed mb-6">
-                Claude analyzes your marketing data with precision, delivering insights that 
+                AI analyzes your marketing data with precision, delivering insights that 
                 transform numbers into strategic narratives.
               </p>
               <div className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-600">

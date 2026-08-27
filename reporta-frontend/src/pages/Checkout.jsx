@@ -102,7 +102,7 @@ export default function Checkout() {
                     <FeatureItem 
                       icon={<Sparkles className="h-5 w-5" />}
                       title="AI-Powered Insights"
-                      description="Claude analyzes data and writes summaries"
+                      description="AI analyzes data and writes summaries"
                     />
                     <FeatureItem 
                       icon={<BarChart2 className="h-5 w-5" />}

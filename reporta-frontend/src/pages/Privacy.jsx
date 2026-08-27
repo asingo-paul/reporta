@@ -108,7 +108,7 @@ export default function Privacy() {
               </h3>
               <ul className="list-disc pl-6 space-y-2 mb-4">
                 <li><strong>Stripe:</strong> Payment processing</li>
-                <li><strong>Anthropic (Claude AI):</strong> AI-powered analysis and insight generation</li>
+                <li><strong>AI model providers (e.g., Google Gemini or OpenAI):</strong> AI-powered analysis and insight generation</li>
                 <li><strong>Cloud Hosting:</strong> Infrastructure and data storage</li>
                 <li><strong>Email Service:</strong> Transactional and report delivery emails</li>
               </ul>
@@ -214,7 +214,8 @@ export default function Privacy() {
                 <li>Google Privacy Policy: https://policies.google.com/privacy</li>
                 <li>Meta Privacy Policy: https://www.facebook.com/privacy/policy</li>
                 <li>Stripe Privacy Policy: https://stripe.com/privacy</li>
-                <li>Anthropic Privacy Policy: https://www.anthropic.com/privacy</li>
+                <li>Google Privacy Policy: https://policies.google.com/privacy</li>
+                <li>OpenAI Privacy Policy: https://openai.com/policies/row-privacy-policy/</li>
               </ul>
             </section>
 

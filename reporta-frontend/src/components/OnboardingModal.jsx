@@ -168,7 +168,7 @@ export default function OnboardingModal() {
               <div>
                 <h4 className="font-medium text-gray-900 dark:text-white mb-2">AI-Powered Insights</h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  Claude AI analyzes your data and generates insights automatically
+                  AI analyzes your data and generates insights automatically
                 </p>
                 <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
                   <p>• Performance summaries</p>

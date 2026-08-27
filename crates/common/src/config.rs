@@ -28,8 +28,13 @@ pub struct Config {
     /// 32-byte key, base64-encoded, used for AES-256-GCM encryption of OAuth tokens at rest.
     pub token_encryption_key_b64: String,
 
-    pub anthropic_api_key: Option<String>,
-    pub anthropic_model: String,
+    pub openai_api_key: Option<String>,
+    pub openai_model: String,
+    /// Full endpoint URL implementing the OpenAI Chat Completions protocol.
+    /// Defaults to OpenAI itself, but can point at any compatible provider
+    /// (e.g. Google's Gemini compatibility endpoint or Groq) — useful for
+    /// free-tier providers.
+    pub openai_base_url: String,
 
     pub stripe_secret_key: Option<String>,
     pub stripe_webhook_secret: Option<String>,
@@ -109,13 +114,17 @@ impl Config {
             refresh_token_ttl_secs: optional_parsed("REFRESH_TOKEN_TTL_SECS", 1_209_600i64)?,
             token_encryption_key_b64: token_key,
 
-            anthropic_api_key: optional("ANTHROPIC_API_KEY"),
+            openai_api_key: optional("OPENAI_API_KEY"),
             // A short, mostly-templated 4-sentence summary doesn't need
-            // frontier-tier reasoning; Sonnet keeps per-report cost
+            // frontier-tier reasoning; small cheap models keep per-report cost
             // proportionate to the product's $29/mo price point. Override via
-            // ANTHROPIC_MODEL (e.g. to `claude-opus-5`) for higher quality.
-            anthropic_model: optional("ANTHROPIC_MODEL")
-                .unwrap_or_else(|| "claude-sonnet-5".to_string()),
+            // OPENAI_MODEL for higher quality.
+            openai_model: optional("OPENAI_MODEL")
+                .unwrap_or_else(|| "gpt-4o-mini".to_string()),
+            // Any OpenAI-compatible provider works. Defaults to OpenAI itself;
+            // see .env.example for free-tier alternatives (Gemini, Groq).
+            openai_base_url: optional("OPENAI_BASE_URL")
+                .unwrap_or_else(|| "https://api.openai.com/v1/chat/completions".to_string()),
 
             stripe_secret_key: optional("STRIPE_SECRET_KEY"),
             stripe_webhook_secret: optional("STRIPE_WEBHOOK_SECRET"),

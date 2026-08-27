@@ -1,0 +1,7 @@
+/target
+reporta-frontend/node_modules
+reporta-frontend/dist
+.env
+.env.*.local
+*.log
+.DS_Store

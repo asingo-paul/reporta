@@ -50,7 +50,7 @@ export default function Terms() {
               </p>
               <ul className="list-disc pl-6 space-y-2 mb-4">
                 <li>Automated data collection from Google Analytics 4, Google Ads, and Meta advertising platforms</li>
-                <li>AI-powered analysis and insight generation using Claude AI</li>
+                <li>AI-powered analysis and insight generation using third-party AI models</li>
                 <li>Professional PDF report generation with custom branding</li>
                 <li>Email delivery of reports to designated recipients</li>
                 <li>Client management and reporting dashboard</li>
@@ -158,7 +158,7 @@ export default function Terms() {
                 8. AI-Generated Content
               </h2>
               <p className="mb-4">
-                Our Service uses artificial intelligence (Claude AI) to analyze data and generate insights. While we strive for accuracy:
+                Our Service uses artificial intelligence provided by third-party model providers to analyze data and generate insights. While we strive for accuracy:
               </p>
               <ul className="list-disc pl-6 space-y-2 mb-4">
                 <li>AI-generated insights are provided "as is" and may not always be accurate or appropriate</li>

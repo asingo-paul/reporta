@@ -43,7 +43,7 @@ export default function HelpSidebar() {
     {
       id: 6,
       question: 'How does the AI analysis work?',
-      answer: 'We use Claude AI from Anthropic to analyze your marketing data and generate insights, summaries, and recommendations based on performance trends.'
+      answer: 'We use large language models (such as Google Gemini) to analyze your marketing data and generate insights, summaries, and recommendations based on performance trends.'
     },
     {
       id: 7,

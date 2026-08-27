@@ -1,4 +1,4 @@
-use crate::claude::ClaudeClient;
+use crate::openai::OpenAIClient;
 use crate::guard::find_unsupported_numbers;
 use crate::prompt::{allowed_values, build_user_message, MetricPoint, SYSTEM_PROMPT};
 
@@ -6,7 +6,7 @@ use crate::prompt::{allowed_values, build_user_message, MetricPoint, SYSTEM_PROM
 /// summary and whether it had to fall back to the deterministic template
 /// (surfaced so the UI/ops can tell when the LLM path is degraded).
 pub struct InsightsEngine {
-    client: ClaudeClient,
+    client: OpenAIClient,
 }
 
 pub struct GeneratedSummary {
@@ -15,11 +15,11 @@ pub struct GeneratedSummary {
 }
 
 impl InsightsEngine {
-    pub fn new(client: ClaudeClient) -> Self {
+    pub fn new(client: OpenAIClient) -> Self {
         Self { client }
     }
 
-    /// Never fails: a missing/invalid Anthropic API key, a network error, or
+    /// Never fails: a missing/invalid OpenAI API key, a network error, or
     /// a model response that keeps failing the numeric-hallucination guard
     /// all degrade to `deterministic_fallback_summary` rather than blocking
     /// report generation. `used_fallback` tells the caller (and eventually
@@ -47,7 +47,7 @@ impl InsightsEngine {
             let summary = match self.client.complete(SYSTEM_PROMPT, &prompt).await {
                 Ok(summary) => summary,
                 Err(err) => {
-                    tracing::warn!(?err, attempt, "Anthropic API call failed");
+                    tracing::warn!(?err, attempt, "LLM API call failed");
                     break;
                 }
             };

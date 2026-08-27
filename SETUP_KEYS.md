@@ -47,12 +47,23 @@ There are **two** `.env` files to fill in:
 | `REFRESH_TOKEN_TTL_SECS` | Backend `.env` | `1209600` (14 days, default) |
 ---
 
-## 4. AI summaries — Anthropic (Claude)
+## 4. AI summaries — any OpenAI-compatible provider
+
+The backend speaks the OpenAI Chat Completions protocol with a **configurable endpoint**, so it works with OpenAI itself or any compatible provider:
 
 | Key | Applies to | Get from |
 |-----|-----------|----------|
-| `ANTHROPIC_API_KEY` | Backend `.env` | **https://console.anthropic.com/** → *API Keys*. Needed for AI executive summaries. (Optional — reports fall back to a deterministic template without it, but you'll want it.) |
-| `ANTHROPIC_MODEL` | Backend `.env` | Optional. Defaults to `claude-sonnet-5`. Set `claude-opus-5` for higher quality. |
+| `OPENAI_API_KEY` | Backend `.env` | Provider API key. Needed for AI executive summaries. (Optional — reports fall back to a deterministic template without it.) |
+| `OPENAI_BASE_URL` | Backend `.env` | Full chat-completions URL of your chosen provider. Leave empty for OpenAI itself (`https://api.openai.com/v1/chat/completions`). |
+| `OPENAI_MODEL` | Backend `.env` | Model ID for that provider. |
+
+**Free options (no money needed):**
+
+| Provider | `OPENAI_BASE_URL` | Example `OPENAI_MODEL` | Get key from |
+|----------|-------------------|------------------------|--------------|
+| **Google Gemini** (recommended) | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` | `gemini-3.7-flash` | **https://aistudio.google.com/apikey** |
+| Groq | `https://api.groq.com/openai/v1/chat/completions` | `llama-3.3-70b-versatile` | https://console.groq.com/keys |
+| OpenAI (paid only) | `https://api.openai.com/v1/chat/completions` | `gpt-4o-mini` | https://platform.openai.com/api-keys |
 
 ---
 
