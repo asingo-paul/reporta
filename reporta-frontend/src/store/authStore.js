@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { authAPI } from '../lib/api';
+import { authAPI, silentRefresh } from '../lib/api';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -55,11 +55,17 @@ export const useAuthStore = create((set) => ({
   },
 
   checkAuth: async () => {
-    const token = localStorage.getItem('access_token');
-    
+    let token = localStorage.getItem('access_token');
+
+    // No (or cleared) access token? Try one silent cookie-based refresh
+    // before declaring the session dead — this is what makes logins persist
+    // for a long time instead of bouncing the user to /login.
     if (!token) {
-      set({ isLoading: false, isAuthenticated: false });
-      return;
+      token = await silentRefresh();
+      if (!token) {
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
     }
 
     try {
@@ -67,6 +73,19 @@ export const useAuthStore = create((set) => ({
       const user = response.data.user || response.data;
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error) {
+      // The axios interceptor already attempted one refresh+retry; if we
+      // still failed, try once more explicitly, then give up.
+      const refreshed = await silentRefresh();
+      if (refreshed) {
+        try {
+          const response = await authAPI.getMe();
+          const user = response.data.user || response.data;
+          set({ user, isAuthenticated: true, isLoading: false });
+          return;
+        } catch {
+          // fall through to logged-out state
+        }
+      }
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       set({ user: null, isAuthenticated: false, isLoading: false });

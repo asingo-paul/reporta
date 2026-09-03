@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use validator::Validate;
 
-use crate::extractors::AuthUser;
+use crate::audit;
+use crate::extractors::{AuthUser, ClientIp};
 use crate::state::AppState;
 
 const REFRESH_COOKIE: &str = "reporta_refresh";
@@ -34,12 +35,6 @@ pub struct SignupRequest {
 }
 
 #[derive(Debug, Serialize)]
-struct AuthResponse {
-    access_token: String,
-    user: PublicUser,
-}
-
-#[derive(Debug, Serialize)]
 struct PublicUser {
     id: uuid::Uuid,
     email: String,
@@ -55,6 +50,7 @@ impl From<User> for PublicUser {
 pub async fn signup(
     State(state): State<AppState>,
     jar: CookieJar,
+    ClientIp(ip): ClientIp,
     Json(req): Json<SignupRequest>,
 ) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
     tracing::info!("signup attempt for email: {}", req.email);
@@ -101,9 +97,29 @@ pub async fn signup(
         })?;
 
     let user_id = user.id;
-    let jar = jar.add(refresh_cookie(&state, refresh_token, state.config.refresh_token_ttl_secs));
-    let body = json!(AuthResponse { access_token, user: user.into() });
+    // Cookie is the primary transport (HttpOnly, XSS-safe); the body copy is
+    // a fallback so sessions still persist in cookie-less environments.
+    let jar = jar.add(refresh_cookie(
+        &state,
+        refresh_token.clone(),
+        state.config.refresh_token_ttl_secs,
+    ));
+    let body = json!({
+        "access_token": access_token,
+        "user": PublicUser::from(user),
+        "refresh_token": refresh_token,
+    });
     tracing::info!("signup successful for user_id: {}", user_id);
+
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "auth.signup",
+        Some("user"),
+        Some(user_id),
+        json!({ "email": req.email }),
+        ip.as_deref(),
+    );
     Ok((jar, Json(body)))
 }
 
@@ -117,6 +133,7 @@ pub struct LoginRequest {
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
+    ClientIp(ip): ClientIp,
     Json(req): Json<LoginRequest>,
 ) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
     tracing::info!("login attempt for email: {}", req.email);
@@ -134,11 +151,29 @@ pub async fn login(
         })?
         .ok_or_else(|| {
             tracing::warn!("login failed: user not found for email: {}", req.email);
+            audit::record(
+                &state.pool,
+                None,
+                "auth.login_failed",
+                None,
+                None,
+                json!({ "email": req.email, "reason": "unknown_user" }),
+                ip.as_deref(),
+            );
             AppError::Unauthorized
         })?;
     
     if !verify_password(&req.password, &user.password_hash) {
         tracing::warn!("login failed: invalid password for email: {}", req.email);
+        audit::record(
+            &state.pool,
+            Some(user.id),
+            "auth.login_failed",
+            Some("user"),
+            Some(user.id),
+            json!({ "email": req.email, "reason": "bad_password" }),
+            ip.as_deref(),
+        );
         return Err(AppError::Unauthorized);
     }
 
@@ -159,20 +194,55 @@ pub async fn login(
         })?;
 
     let user_id = user.id;
-    let jar = jar.add(refresh_cookie(&state, refresh_token, state.config.refresh_token_ttl_secs));
-    let body = json!(AuthResponse { access_token, user: user.into() });
+    // Cookie is the primary transport (HttpOnly, XSS-safe); the body copy is
+    // a fallback so sessions still persist in cookie-less environments.
+    let jar = jar.add(refresh_cookie(
+        &state,
+        refresh_token.clone(),
+        state.config.refresh_token_ttl_secs,
+    ));
+    let body = json!({
+        "access_token": access_token,
+        "user": PublicUser::from(user),
+        "refresh_token": refresh_token,
+    });
     tracing::info!("login successful for user_id: {}", user_id);
+
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "auth.login",
+        Some("user"),
+        Some(user_id),
+        json!({ "email": req.email, "outcome": "success" }),
+        ip.as_deref(),
+    );
     Ok((jar, Json(body)))
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct RefreshRequest {
+    refresh_token: Option<String>,
 }
 
 pub async fn refresh(
     State(state): State<AppState>,
     jar: CookieJar,
+    // The refresh token normally rides in the HttpOnly cookie; a JSON body is
+    // accepted as a fallback so native/legacy clients that never received the
+    // cookie can still refresh. Extraction failure (no body) is fine.
+    body: Result<Json<RefreshRequest>, axum::extract::rejection::JsonRejection>,
 ) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
-    let raw = jar
-        .get(REFRESH_COOKIE)
-        .map(|c| c.value().to_string())
-        .ok_or(AppError::Unauthorized)?;
+    let raw = match jar.get(REFRESH_COOKIE).map(|c| c.value().to_string()) {
+        Some(v) => v,
+        None => match body {
+            Ok(Json(req)) => req
+                .refresh_token
+                .filter(|t| !t.trim().is_empty())
+                .ok_or(AppError::Unauthorized)?,
+            Err(_) => return Err(AppError::Unauthorized),
+        },
+    };
 
     let (user_id, new_raw) = state.refresh_tokens.rotate(&state.pool, &raw).await.map_err(|e| {
         tracing::warn!(?e, "refresh token rotation failed");
@@ -184,8 +254,15 @@ pub async fn refresh(
         .issue_access_token(user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
 
-    let jar = jar.add(refresh_cookie(&state, new_raw, state.config.refresh_token_ttl_secs));
-    Ok((jar, Json(json!({ "access_token": access_token }))))
+    let jar = jar.add(refresh_cookie(
+        &state,
+        new_raw.clone(),
+        state.config.refresh_token_ttl_secs,
+    ));
+    Ok((
+        jar,
+        Json(json!({ "access_token": access_token, "refresh_token": new_raw })),
+    ))
 }
 
 pub async fn logout(

@@ -3760,6 +3760,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "thiserror 2.0.20",
+ "tokio",
  "tracing",
  "uuid 1.25.0",
 ]

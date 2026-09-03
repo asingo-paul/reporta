@@ -1,4 +1,5 @@
 use regex::Regex;
+use reporta_common::BreakdownSection;
 use std::sync::OnceLock;
 
 pub struct MetricRow {
@@ -6,6 +7,9 @@ pub struct MetricRow {
     pub current: String,
     pub previous: String,
     pub change: String,
+    /// Period-over-period change, if a prior value existed. Drives the ▲/▼
+    /// colour in the table and the "at a glance" tiles.
+    pub delta_pct: Option<f64>,
 }
 
 pub struct ReportInput {
@@ -16,8 +20,18 @@ pub struct ReportInput {
     pub brand_secondary_color: String,
     pub intro_blurb: String,
     pub ai_summary: String,
+    /// AI-generated actionable recommendations, rendered as a numbered list.
+    pub ai_recommendations: Vec<String>,
+    /// AI-generated forward-looking conclusion.
+    pub ai_conclusion: String,
     pub ai_summary_was_edited: bool,
+    /// True when the narrative is the deterministic fallback (LLM unavailable).
+    pub ai_summary_is_fallback: bool,
+    /// Human-readable data-source names for the report's attribution line.
+    pub sources: Vec<String>,
     pub metrics: Vec<MetricRow>,
+    /// Segment breakdown tables shown under the headline metrics.
+    pub breakdowns: Vec<BreakdownSection>,
     /// Filename of the logo asset registered in the `World`'s virtual file
     /// map, if one was uploaded (e.g. `"logo.png"`).
     pub logo_asset: Option<String>,
@@ -95,22 +109,44 @@ pub fn build_report_source(input: &ReportInput) -> String {
         "#let ai_summary = \"{}\"\n",
         escape_typst_string(&input.ai_summary)
     ));
+    src.push_str(&format!(
+        "#let ai_conclusion = \"{}\"\n",
+        escape_typst_string(&input.ai_conclusion)
+    ));
+    src.push_str("#let ai_recommendations = (\n");
+    for rec in &input.ai_recommendations {
+        src.push_str(&format!("  \"{}\",\n", escape_typst_string(rec)));
+    }
+    src.push_str(")\n");
 
-    src.push_str("#block(width: 100%)[\n");
+    src.push_str("#align(center)[\n");
     if let Some(logo) = &input.logo_asset {
-        src.push_str(&format!("  #image(\"{logo}\", width: 2.6cm)\n"));
-        src.push_str("  #v(0.3cm)\n");
+        src.push_str(&format!("  #image(\"{logo}\", width: 3cm)\n"));
+        src.push_str("  #v(0.35cm)\n");
     }
     src.push_str("  #text(size: 20pt, weight: \"bold\", fill: brand_primary)[Performance Report]\n");
     src.push_str("  #v(0.15cm)\n");
     src.push_str("  #text(size: 12pt, fill: brand_secondary)[#client_name --- #period_label]\n");
     src.push_str("]\n");
+    src.push_str("#v(0.35cm)\n");
     src.push_str("#line(length: 100%, stroke: 0.75pt + brand_secondary)\n");
     src.push_str("#v(0.4cm)\n");
 
+    // Period-over-period change styling. Direction is carried by colour and the
+    // signed percentage in the value itself — no glyphs, so it never depends on
+    // a font shipping ▲/▼.
+    src.push_str(
+        "#let delta_color(dir) = if dir == \"up\" { rgb(\"#15803D\") } \
+         else if dir == \"down\" { rgb(\"#B91C1C\") } else { rgb(\"#6B7280\") }\n",
+    );
+
     src.push_str("== Introduction\n#intro_blurb\n\n");
     src.push_str("== Executive Summary\n#ai_summary\n\n");
-    if input.ai_summary_was_edited {
+    if input.ai_summary_is_fallback {
+        src.push_str(
+            "#block(fill: rgb(\"#FEF3C7\"), inset: 8pt, radius: 3pt, width: 100%)[#text(size: 8pt, fill: rgb(\"#92400E\"))[This narrative was generated from a template because the AI service was unavailable. Review before sending.]]\n\n",
+        );
+    } else if input.ai_summary_was_edited {
         src.push_str(
             "#text(size: 8pt, style: \"italic\", fill: gray)[This summary was reviewed and edited by the agency.]\n\n",
         );
@@ -125,8 +161,13 @@ pub fn build_report_source(input: &ReportInput) -> String {
     // no re-parsing — the same safe pattern used for the intro/summary text.
     src.push_str("#let metric_rows = (\n");
     for row in &input.metrics {
+        let dir = match row.delta_pct {
+            Some(p) if p > 0.05 => "up",
+            Some(p) if p < -0.05 => "down",
+            _ => "flat",
+        };
         src.push_str(&format!(
-            "  (\"{}\", \"{}\", \"{}\", \"{}\"),\n",
+            "  (\"{}\", \"{}\", \"{}\", \"{}\", \"{dir}\"),\n",
             escape_typst_string(&row.label),
             escape_typst_string(&row.current),
             escape_typst_string(&row.previous),
@@ -135,19 +176,115 @@ pub fn build_report_source(input: &ReportInput) -> String {
     }
     src.push_str(")\n\n");
 
-    src.push_str("== Key Metrics at a Glance\n");
+    // "At a glance": the first few metrics as headline tiles.
+    let tile_count = input.metrics.len().min(4);
+    if tile_count > 0 {
+        src.push_str("== Key Metrics at a Glance\n");
+        src.push_str(&format!(
+            "#grid(columns: ({}), gutter: 0.35cm,\n",
+            "1fr, ".repeat(tile_count).trim_end_matches(", ")
+        ));
+        for idx in 0..tile_count {
+            src.push_str(&format!(
+                "  block(fill: rgb(\"#F9FAFB\"), inset: 9pt, radius: 4pt, width: 100%)[\
+                 #text(size: 7pt, fill: gray, weight: \"bold\")[#upper(metric_rows.at({idx}).at(0))] #v(2pt) \
+                 #text(size: 15pt, weight: \"bold\", fill: brand_secondary)[#metric_rows.at({idx}).at(1)] #v(1pt) \
+                 #text(size: 8pt, fill: delta_color(metric_rows.at({idx}).at(4)))[#metric_rows.at({idx}).at(3)]],\n"
+            ));
+        }
+        src.push_str(")\n#v(0.5cm)\n\n");
+    }
+
+    src.push_str("== Full Metric Breakdown\n");
     src.push_str("#table(\n");
     src.push_str("  columns: (2fr, 1fr, 1fr, 1fr),\n");
+    src.push_str("  align: (left, right, right, right),\n");
     src.push_str("  fill: (col, row) => if row == 0 { brand_primary } else if calc.even(row) { rgb(\"#F3F4F6\") } else { white },\n");
     src.push_str(
         "  [#text(fill: white, weight: \"bold\")[Metric]], [#text(fill: white, weight: \"bold\")[This Period]], [#text(fill: white, weight: \"bold\")[Previous Period]], [#text(fill: white, weight: \"bold\")[Change]],\n",
     );
-    src.push_str("  ..metric_rows.map(row => row.map(cell => [#cell])).flatten()\n");
-    src.push_str(")\n\n");
+    src.push_str(
+        "  ..metric_rows.map(row => (\
+         [#row.at(0)], [#row.at(1)], [#row.at(2)], \
+         [#text(fill: delta_color(row.at(4)))[#row.at(3)]])).flatten()\n",
+    );
+    src.push_str(")\n");
+    if !input.sources.is_empty() {
+        let joined = input
+            .sources
+            .iter()
+            .map(|s| escape_typst_string(s))
+            .collect::<Vec<_>>()
+            .join(", ");
+        src.push_str(&format!(
+            "#v(3pt)#text(size: 8pt, fill: gray)[Sources: {joined}]\n"
+        ));
+    }
+    src.push('\n');
+
+    // Segment breakdowns — the detail behind the headline numbers.
+    for (si, section) in input.breakdowns.iter().enumerate() {
+        if section.rows.is_empty() || section.columns.is_empty() {
+            continue;
+        }
+        src.push_str(&format!("== {}\n", section.title.replace(['=', '#'], "")));
+        src.push_str(&format!("#let bd_{si} = (\n"));
+        for row in &section.rows {
+            let cells: Vec<String> = section
+                .columns
+                .iter()
+                .enumerate()
+                .map(|(ci, _)| {
+                    let v = row.get(ci).map(String::as_str).unwrap_or("");
+                    format!("\"{}\"", escape_typst_string(v))
+                })
+                .collect();
+            src.push_str(&format!("  ({}),\n", cells.join(", ")));
+        }
+        src.push_str(")\n");
+        let ncols = section.columns.len();
+        let col_spec = std::iter::once("2fr".to_string())
+            .chain(std::iter::repeat("1fr".to_string()).take(ncols.saturating_sub(1)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let aligns = std::iter::once("left")
+            .chain(std::iter::repeat("right").take(ncols.saturating_sub(1)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let headers: Vec<String> = section
+            .columns
+            .iter()
+            .map(|c| format!("[#text(size: 8pt, fill: white, weight: \"bold\")[{}]]", escape_typst_string(c)))
+            .collect();
+        src.push_str("#table(\n");
+        src.push_str(&format!("  columns: ({col_spec}),\n  align: ({aligns}),\n"));
+        src.push_str("  inset: 5pt,\n");
+        src.push_str("  fill: (col, row) => if row == 0 { brand_primary } else if calc.even(row) { rgb(\"#F3F4F6\") } else { white },\n");
+        src.push_str(&format!("  {},\n", headers.join(", ")));
+        src.push_str(&format!(
+            "  ..bd_{si}.map(row => row.map(cell => [#text(size: 8pt)[#cell]])).flatten()\n"
+        ));
+        src.push_str(")\n#v(0.3cm)\n\n");
+    }
 
     if let Some(chart) = &input.chart_asset {
         src.push_str("== Performance Trend\n");
         src.push_str(&format!("#image(\"{chart}\", width: 100%)\n\n"));
+    }
+
+    // Analyst's take goes after the numbers, so the reader sees the data first.
+    if !input.ai_recommendations.is_empty() {
+        src.push_str("== Recommendations\n");
+        for (i, _) in input.ai_recommendations.iter().enumerate() {
+            src.push_str(&format!(
+                "#grid(columns: (0.7cm, 1fr), row-gutter: 4pt, [#text(weight: \"bold\", fill: brand_primary)[{}.]], [#ai_recommendations.at({i})])\n#v(3pt)\n",
+                i + 1
+            ));
+        }
+        src.push('\n');
+    }
+    if !input.ai_conclusion.trim().is_empty() {
+        src.push_str("== Conclusion\n#ai_conclusion\n\n");
     }
 
     src.push_str("#v(1fr)\n");

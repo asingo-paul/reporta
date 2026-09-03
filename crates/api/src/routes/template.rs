@@ -6,7 +6,8 @@ use reporta_db::models::ReportTemplate;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::extractors::AuthUser;
+use crate::audit;
+use crate::extractors::{AuthUser, ClientIp};
 use crate::state::AppState;
 
 pub async fn get_template(
@@ -31,6 +32,7 @@ pub struct UpdateTemplateRequest {
 pub async fn update_template(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
+    ClientIp(ip): ClientIp,
     Json(req): Json<UpdateTemplateRequest>,
 ) -> AppResult<Json<ReportTemplate>> {
     req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
@@ -57,6 +59,16 @@ pub async fn update_template(
         &req.intro_blurb,
     )
     .await?;
+
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "template.updated",
+        Some("template"),
+        Some(template.id),
+        serde_json::json!({ "enabled_metrics": enabled_metrics }),
+        ip.as_deref(),
+    );
     Ok(Json(template))
 }
 
@@ -68,6 +80,7 @@ pub async fn update_template(
 pub async fn upload_logo(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
+    ClientIp(ip): ClientIp,
     mut multipart: Multipart,
 ) -> AppResult<Json<ReportTemplate>> {
     let field = multipart
@@ -105,5 +118,15 @@ pub async fn upload_logo(
         &existing.intro_blurb,
     )
     .await?;
+
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "template.logo_uploaded",
+        Some("template"),
+        Some(template.id),
+        serde_json::json!({ "filename": filename, "bytes": bytes.len() }),
+        ip.as_deref(),
+    );
     Ok(Json(template))
 }

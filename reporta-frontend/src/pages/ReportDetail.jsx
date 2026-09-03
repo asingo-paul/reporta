@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Download,
-  Mail,
   Clock,
   CheckCircle,
   AlertCircle,
@@ -13,21 +12,25 @@ import {
   X,
   TrendingUp,
   TrendingDown,
-  Users,
-  MousePointer,
-  Eye,
-  DollarSign
+  Minus,
+  Share2,
+  Trash2
 } from 'lucide-react';
 import { reportsAPI, clientsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
+import ConfirmModal from '../components/ConfirmModal';
+import ShareReportModal from '../components/ShareReportModal';
+import ProgressSteps from '../components/ProgressSteps';
 import { ReportDetailSkeleton } from '../components/LoadingSkeleton';
 import { useToast } from '../contexts/ToastContext';
 import { format } from 'date-fns';
 import { formatSafeDate } from '../lib/formatDate';
+import { downloadReportPdf } from '../lib/download';
 
 export default function ReportDetail() {
   const { reportId } = useParams();
+  const navigate = useNavigate();
   const toast = useToast();
   
   const [report, setReport] = useState(null);
@@ -36,7 +39,9 @@ export default function ReportDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedSummary, setEditedSummary] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [showSendModal, setShowSendModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadReportData();
@@ -108,18 +113,27 @@ export default function ReportDetail() {
 
   const handleDownloadPDF = async () => {
     try {
-      const response = await reportsAPI.downloadPDF(reportId);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `report-${reportId}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      await downloadReportPdf(reportId);
       toast.success('PDF downloaded successfully!');
     } catch (error) {
       console.error('Failed to download PDF:', error);
       toast.error('Failed to download PDF');
+    }
+  };
+
+  // Permanent delete — confirmed via ConfirmModal before it runs, and logged
+  // server-side so the removal shows up in the activity log.
+  const handleDeleteReport = async () => {
+    setIsDeleting(true);
+    try {
+      await reportsAPI.delete(reportId);
+      toast.success('Report deleted successfully');
+      navigate(client ? `/clients/${client.id}` : '/dashboard');
+    } catch (error) {
+      console.error('Failed to delete report:', error);
+      toast.error('Failed to delete report');
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -173,6 +187,14 @@ export default function ReportDetail() {
     );
   };
 
+  // Download & share need the generated PDF, so they stay visible but are
+  // disabled (with an explanatory tooltip) until the report is completed.
+  const isReady = report.status === 'completed';
+  // The computed metric table the PDF was rendered from (single source of truth).
+  const metrics = Array.isArray(report.metrics_json) ? report.metrics_json : [];
+  const aiRecommendations = Array.isArray(report.ai_recommendations) ? report.ai_recommendations : [];
+  const breakdowns = Array.isArray(report.breakdowns_json) ? report.breakdowns_json : [];
+
   return (
     <>
       <Navbar />
@@ -203,54 +225,138 @@ export default function ReportDetail() {
                 </div>
               </div>
 
-              {report.status === 'completed' && (
-                <div className="flex space-x-3 mt-4 md:mt-0">
-                  <button onClick={handleDownloadPDF} className="btn btn-secondary inline-flex items-center">
-                    <Download className="h-4 w-4 mr-2" />
-                    Download PDF
-                  </button>
-                  <button onClick={() => setShowSendModal(true)} className="btn btn-primary inline-flex items-center">
-                    <Mail className="h-4 w-4 mr-2" />
-                    Send to Client
-                  </button>
-                </div>
-              )}
+              <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={!isReady}
+                  className="btn btn-secondary inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  disabled={!isReady}
+                  className="btn btn-primary inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  aria-label="Delete report"
+                  title="Delete report"
+                  className="btn btn-secondary inline-flex items-center border-red-600 text-red-600 dark:border-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Key Metrics */}
+          {/* Key Metrics — built from the exact table the PDF was rendered from */}
           {report.status === 'completed' && (
             <div className="card mb-8">
-              <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-6 uppercase">Key Metrics</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <MetricCard 
-                  icon={<Users className="h-6 w-6" />}
-                  label="Total Users"
-                  value="12,450"
-                  change="+12.5%"
-                  trend="up"
-                />
-                <MetricCard 
-                  icon={<Eye className="h-6 w-6" />}
-                  label="Page Views"
-                  value="45,230"
-                  change="+8.3%"
-                  trend="up"
-                />
-                <MetricCard 
-                  icon={<MousePointer className="h-6 w-6" />}
-                  label="Click Rate"
-                  value="3.2%"
-                  change="-2.1%"
-                  trend="down"
-                />
-                <MetricCard 
-                  icon={<DollarSign className="h-6 w-6" />}
-                  label="Revenue"
-                  value="$8,420"
-                  change="+15.8%"
-                  trend="up"
-                />
+              <div className="flex items-baseline justify-between mb-6">
+                <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white uppercase">Key Metrics</h2>
+                <span className="text-xs text-gray-500 dark:text-gray-500">
+                  {formatSafeDate(report.period_start)} – {formatSafeDate(report.period_end)} vs. prior period
+                </span>
+              </div>
+
+              {metrics.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-500 italic">
+                  No metrics were returned by the connected sources for this period.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    {metrics.slice(0, 4).map((m) => (
+                      <MetricCard
+                        key={m.key}
+                        label={m.label}
+                        value={m.current}
+                        change={m.change}
+                        trend={m.delta_pct == null ? 'flat' : m.delta_pct > 0 ? 'up' : m.delta_pct < 0 ? 'down' : 'flat'}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-gray-800 text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-500">
+                          <th className="py-2 pr-4 font-medium">Metric</th>
+                          <th className="py-2 px-4 font-medium text-right">This period</th>
+                          <th className="py-2 px-4 font-medium text-right">Previous</th>
+                          <th className="py-2 pl-4 font-medium text-right">Change</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {metrics.map((m) => {
+                          const dir = m.delta_pct == null ? 'flat' : m.delta_pct > 0 ? 'up' : m.delta_pct < 0 ? 'down' : 'flat';
+                          const color =
+                            dir === 'up'
+                              ? 'text-green-600 dark:text-green-400'
+                              : dir === 'down'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-gray-500 dark:text-gray-500';
+                          return (
+                            <tr key={m.key} className="border-b border-gray-100 dark:border-gray-900">
+                              <td className="py-2.5 pr-4 text-gray-900 dark:text-white">{m.label}</td>
+                              <td className="py-2.5 px-4 text-right tabular-nums text-gray-900 dark:text-white">{m.current}</td>
+                              <td className="py-2.5 px-4 text-right tabular-nums text-gray-600 dark:text-gray-400">{m.previous}</td>
+                              <td className={`py-2.5 pl-4 text-right tabular-nums font-medium ${color}`}>
+                                {dir === 'up' ? '▲ ' : dir === 'down' ? '▼ ' : ''}
+                                {m.change}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {metrics.every((m) => m.delta_pct == null) && (
+                    <p className="mt-3 text-xs text-gray-500 dark:text-gray-500">
+                      No prior-period data was available for comparison.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Segment breakdowns */}
+          {report.status === 'completed' && breakdowns.length > 0 && (
+            <div className="card mb-8">
+              <h2 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-6 uppercase">Breakdowns</h2>
+              <div className="space-y-8">
+                {breakdowns.map((section, si) => (
+                  <div key={si}>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">{section.title}</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-gray-800 text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-500">
+                            {section.columns.map((c, ci) => (
+                              <th key={ci} className={`py-2 font-medium ${ci === 0 ? 'pr-4' : 'px-4 text-right'}`}>{c}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {section.rows.map((row, ri) => (
+                            <tr key={ri} className="border-b border-gray-100 dark:border-gray-900">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className={`py-2 ${ci === 0 ? 'pr-4 text-gray-900 dark:text-white' : 'px-4 text-right tabular-nums text-gray-600 dark:text-gray-400'}`}>{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -269,6 +375,13 @@ export default function ReportDetail() {
                 </button>
               )}
             </div>
+
+            {report.status === 'completed' && report.ai_summary_is_fallback && (
+              <div className="mb-4 flex items-start space-x-2 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>AI summary was unavailable — this is a template-generated summary. Review and edit it before sending.</span>
+              </div>
+            )}
 
             {isEditing ? (
               <div className="space-y-4">
@@ -310,7 +423,7 @@ export default function ReportDetail() {
                 </div>
               </div>
             ) : (
-              <div className="prose max-w-none">
+              <div className="space-y-6">
                 {report.ai_summary ? (
                   <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{report.ai_summary}</p>
                 ) : report.status === 'completed' ? (
@@ -318,24 +431,36 @@ export default function ReportDetail() {
                 ) : (
                   <p className="text-gray-500 dark:text-gray-500 italic">Summary will be generated when the report is complete</p>
                 )}
+
+                {aiRecommendations.length > 0 && (
+                  <div>
+                    <h3 className="text-xs uppercase tracking-widest text-gray-400 dark:text-gray-600 mb-2">Recommendations</h3>
+                    <ol className="list-decimal pl-5 space-y-1.5 text-gray-700 dark:text-gray-300 leading-relaxed">
+                      {aiRecommendations.map((rec, i) => (
+                        <li key={i}>{rec}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {report.ai_conclusion && (
+                  <div>
+                    <h3 className="text-xs uppercase tracking-widest text-gray-400 dark:text-gray-600 mb-2">Conclusion</h3>
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{report.ai_conclusion}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Processing Status - driven by the live SSE feed */}
+          {/* Processing Status - interactive stepper driven by the live SSE feed */}
           {(report.status === 'pending' || report.status === 'pulling_data' || report.status === 'analyzing' || report.status === 'rendering') && (
-            <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-              <div className="flex items-start space-x-3">
-                <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 animate-pulse" />
-                <div>
-                  <p className="font-medium text-blue-600 dark:text-blue-400 mb-1 uppercase tracking-wider">
-                    {report.progress_message || 'Report is being generated...'}
-                  </p>
-                  <p className="text-sm text-blue-600 dark:text-blue-500/80">
-                    This may take a few minutes. You'll be notified when it's ready.
-                  </p>
-                </div>
-              </div>
+            <div className="mb-8">
+              <ProgressSteps
+                status={report.status}
+                progressMessage={report.progress_message}
+                createdAt={report.created_at}
+              />
             </div>
           )}
 
@@ -358,122 +483,57 @@ export default function ReportDetail() {
         </div>
       </PageWrapper>
 
-      {/* Send Email Modal */}
-      {showSendModal && (
-        <SendEmailModal
-          reportId={reportId}
-          clientEmail={client?.email}
+      {/* Share via Email / WhatsApp */}
+      {showShareModal && (
+        <ShareReportModal
+          report={report}
           clientName={client?.name}
-          onClose={() => setShowSendModal(false)}
+          initialEmail={client?.email}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {/* Delete confirmation — permanent, so it always asks first */}
+      {showDeleteModal && (
+        <ConfirmModal
+          title="Delete Report"
+          message={
+            <p>
+              Are you sure you want to permanently delete the report for{' '}
+              <strong className="text-gray-900 dark:text-white">
+                {formatSafeDate(report.period_start)} - {formatSafeDate(report.period_end)}
+              </strong>
+              {report.sent_at ? ' (this report was already sent to the client)' : ''}? Its PDF and
+              data will be removed. This action cannot be undone.
+            </p>
+          }
+          confirmLabel="Delete Report"
+          onConfirm={handleDeleteReport}
+          onCancel={() => setShowDeleteModal(false)}
+          busy={isDeleting}
         />
       )}
     </>
   );
 }
 
-function MetricCard({ icon, label, value, change, trend }) {
-  const isPositive = trend === 'up';
-  const TrendIcon = isPositive ? TrendingUp : TrendingDown;
-  
+function MetricCard({ label, value, change, trend }) {
+  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
+  const tone =
+    trend === 'up'
+      ? 'text-green-600 dark:text-green-400'
+      : trend === 'down'
+        ? 'text-red-600 dark:text-red-400'
+        : 'text-gray-500 dark:text-gray-500';
+
   return (
     <div className="border border-gray-200 dark:border-gray-800 rounded p-4 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 transition-all">
       <div className="flex items-start justify-between mb-3">
-        <div className="text-gray-600 dark:text-gray-400">{icon}</div>
-        <TrendIcon className={`h-4 w-4 ${isPositive ? 'text-green-500' : 'text-red-500'}`} />
+        <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider">{label}</p>
+        <TrendIcon className={`h-4 w-4 flex-shrink-0 ${tone}`} />
       </div>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-light text-gray-900 dark:text-white mb-1">{value}</p>
-      <p className={`text-xs font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-        {change}
-      </p>
-    </div>
-  );
-}
-
-function SendEmailModal({ reportId, clientEmail, clientName, onClose }) {
-  const toast = useToast();
-  const [email, setEmail] = useState(clientEmail || '');
-  const [isSending, setIsSending] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const handleSend = async (e) => {
-    e.preventDefault();
-    setIsSending(true);
-
-    try {
-      // Backend contract: `SendReportRequest` requires `to_email` + `to_name`.
-      await reportsAPI.send(reportId, {
-        to_email: email,
-        to_name: clientName || email.split('@')[0] || 'Client',
-      });
-      setSuccess(true);
-      toast.success('Report sent successfully!');
-      setTimeout(() => onClose(), 2000);
-    } catch (error) {
-      console.error('Failed to send report:', error);
-      toast.error(error.response?.data?.error || 'Failed to send email');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-dark-50 border border-gray-200 dark:border-gray-800 rounded max-w-lg w-full p-6 animate-slide-up">
-        <h3 className="text-xl font-light tracking-wide text-gray-900 dark:text-white mb-4 uppercase">Send Report via Email</h3>
-
-        {success ? (
-          <div className="text-center py-8">
-            <CheckCircle className="h-12 w-12 text-green-600 dark:text-green-400 mx-auto mb-4" />
-            <p className="text-green-600 dark:text-green-400 font-medium">Email sent successfully!</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSend} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="section-title">
-                Recipient Email *
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input"
-                placeholder="client@example.com"
-                required
-              />
-            </div>
-
-            <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={onClose}
-                className="btn btn-secondary flex-1"
-                disabled={isSending}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary flex-1 inline-flex items-center justify-center"
-                disabled={isSending}
-              >
-                {isSending ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="h-4 w-4 mr-2" />
-                    Send Email
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+      <p className="text-2xl font-light text-gray-900 dark:text-white mb-1 tabular-nums">{value}</p>
+      <p className={`text-xs font-medium tabular-nums ${tone}`}>{change}</p>
     </div>
   );
 }

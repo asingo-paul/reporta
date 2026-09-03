@@ -1,9 +1,9 @@
 use chrono::{Duration, NaiveDate, Utc};
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RefreshToken, Scope, TokenResponse};
 use reporta_common::metrics::{Provider, RawMetrics};
-use reporta_common::Config;
+use reporta_common::{BreakdownSection, Config};
 use reporta_crypto::TokenCipher;
-use reporta_db::models::{Connection, OAuthState};
+use reporta_db::models::{AuditLog, Connection, OAuthState};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -174,6 +174,28 @@ impl ConnectionService {
         )
         .await?;
 
+        // Same best-effort contract as the API layer's audit helper: an audit
+        // write must never fail the connect it's describing. This is recorded
+        // here (not in the route) because the OAuth state row — already
+        // consumed above — is what knows *which user* completed the flow.
+        if let Err(e) = AuditLog::record(
+            pool,
+            Some(oauth_state.user_id),
+            "integration.connected",
+            Some("connection"),
+            Some(connection.id),
+            serde_json::json!({
+                "client_id": oauth_state.client_id,
+                "provider": provider,
+                "external_account_name": external_account_name,
+            }),
+            None,
+        )
+        .await
+        {
+            tracing::warn!(error = ?e, "failed to write audit log");
+        }
+
         Ok(connection)
     }
 
@@ -293,5 +315,53 @@ impl ConnectionService {
 
         Connection::mark_synced(pool, connection.id).await?;
         Ok(metrics)
+    }
+
+    /// Segment breakdowns (traffic by channel/device/page, ad spend by
+    /// campaign) that let the report's AI analysis speak to *this* account
+    /// specifically. Best-effort: a provider that errors here yields an empty
+    /// list — the headline metrics and the report still succeed.
+    pub async fn fetch_breakdowns(
+        &self,
+        pool: &PgPool,
+        config: &Config,
+        cipher: &TokenCipher,
+        connection: &Connection,
+        cur_start: NaiveDate,
+        cur_end: NaiveDate,
+        prev_start: NaiveDate,
+        prev_end: NaiveDate,
+    ) -> Vec<BreakdownSection> {
+        let Ok(access_token) = self.valid_access_token(pool, config, cipher, connection).await else {
+            return Vec::new();
+        };
+        let Some(account_id) = connection.external_account_id.as_deref() else {
+            return Vec::new();
+        };
+
+        match connection.provider {
+            Provider::Meta => {
+                providers::meta::fetch_breakdowns(
+                    &self.http, &access_token, account_id, cur_start, cur_end, prev_start, prev_end,
+                )
+                .await
+            }
+            Provider::Ga4 => {
+                providers::ga4::fetch_breakdowns(
+                    &self.http, &access_token, account_id, cur_start, cur_end, prev_start, prev_end,
+                )
+                .await
+            }
+            Provider::GoogleAds => {
+                let Some(developer_token) = config.google_ads_developer_token.as_deref() else {
+                    return Vec::new();
+                };
+                providers::google_ads::fetch_breakdowns(
+                    &self.http, &access_token, developer_token, account_id, cur_start, cur_end, prev_start,
+                    prev_end,
+                )
+                .await
+            }
+        }
     }
 }

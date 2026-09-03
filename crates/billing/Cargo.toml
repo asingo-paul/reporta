@@ -8,6 +8,7 @@ license.workspace = true
 reporta-common.workspace = true
 reporta-db.workspace = true
 async-stripe = { version = "0.41.0", features = ["runtime-tokio-hyper-rustls"] }
+tokio.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

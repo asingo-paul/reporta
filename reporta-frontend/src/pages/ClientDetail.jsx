@@ -3,10 +3,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   FileText, 
-  ExternalLink,
   AlertCircle,
   CheckCircle,
   Clock,
+  Download,
   Trash2,
   BarChart2,
   Target,
@@ -15,16 +15,31 @@ import {
 import { clientsAPI, reportsAPI, integrationsAPI } from '../lib/api';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
+import ConfirmModal from '../components/ConfirmModal';
+import ShareReportModal from '../components/ShareReportModal';
+import { useToast } from '../contexts/ToastContext';
 import { format } from 'date-fns';
 import { formatSafeDate } from '../lib/formatDate';
+import { downloadReportPdf } from '../lib/download';
 
 export default function ClientDetail() {
   const { clientId } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const [client, setClient] = useState(null);
   const [connections, setConnections] = useState([]);
   const [reports, setReports] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  // `revokeTarget` holds the connection pending confirmation — mirrors the
+  // delete-confirmation pattern used on the Clients page.
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const [isRevoking, setIsRevoking] = useState(false);
+  // `deleteTarget` holds the report pending deletion — same confirmation
+  // pattern as revoking a connection below.
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeletingReport, setIsDeletingReport] = useState(false);
+  // `shareTarget` holds the report being shared (Email / WhatsApp).
+  const [shareTarget, setShareTarget] = useState(null);
 
   useEffect(() => {
     loadClientData();
@@ -54,18 +69,64 @@ export default function ClientDetail() {
       window.location.href = response.data.url;
     } catch (error) {
       console.error('Failed to start OAuth flow:', error);
-      alert('Failed to start connection. Please try again.');
+      // Surface the backend's actual message (e.g. "this integration is not
+      // configured on the server yet") so the user knows what to fix instead
+      // of guessing.
+      const reason = error.response?.data?.error;
+      toast.error(
+        reason
+          ? `Unable to start ${provider.toUpperCase()} connection: ${reason}`
+          : 'Failed to start connection. Please try again.'
+      );
     }
   };
 
-  const handleRevokeConnection = async (connectionId) => {
-    if (!confirm('Are you sure you want to revoke this connection?')) return;
+  // Opens the confirmation modal; the actual disconnect happens in
+  // `confirmRevoke` once the user confirms.
+  const handleRevokeConnection = (connection) => setRevokeTarget(connection);
 
+  const confirmRevoke = async () => {
+    if (!revokeTarget) return;
+    setIsRevoking(true);
     try {
-      await clientsAPI.revokeConnection(clientId, connectionId);
-      setConnections(connections.filter(c => c.id !== connectionId));
+      await clientsAPI.revokeConnection(clientId, revokeTarget.id);
+      setConnections(connections.filter(c => c.id !== revokeTarget.id));
+      toast.success(`${revokeTarget.provider?.toUpperCase() || 'Connection'} disconnected successfully`);
+      setRevokeTarget(null);
     } catch (error) {
       console.error('Failed to revoke connection:', error);
+      toast.error('Failed to disconnect the integration. Please try again.');
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
+  const handleDownload = async (report) => {
+    try {
+      await downloadReportPdf(report.id);
+      toast.success('PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      toast.error('Failed to download PDF');
+    }
+  };
+
+  // Permanent delete — confirmed via ConfirmModal before it runs, and logged
+  // server-side so the removal shows up in the activity log.
+  const confirmDeleteReport = async () => {
+    if (!deleteTarget) return;
+    setIsDeletingReport(true);
+    try {
+      await reportsAPI.delete(deleteTarget.id);
+      setReports(reports.filter((r) => r.id !== deleteTarget.id));
+      toast.success('Report deleted successfully');
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Failed to delete report:', error);
+      toast.error('Failed to delete report');
+      setDeleteTarget(null);
+    } finally {
+      setIsDeletingReport(false);
     }
   };
 
@@ -165,7 +226,7 @@ export default function ClientDetail() {
 
                     {isConnected ? (
                       <button
-                        onClick={() => handleRevokeConnection(connection.id)}
+                        onClick={() => handleRevokeConnection(connection)}
                         className="btn btn-secondary w-full text-sm border-red-600 text-red-600 dark:border-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                       >
                         Disconnect
@@ -210,21 +271,82 @@ export default function ClientDetail() {
             ) : (
               <div className="space-y-3">
                 {reports.map((report) => (
-                  <ReportRow key={report.id} report={report} />
+                  <ReportRow
+                    key={report.id}
+                    report={report}
+                    onDownload={() => handleDownload(report)}
+                    onShare={() => setShareTarget(report)}
+                    onDelete={() => setDeleteTarget(report)}
+                  />
                 ))}
               </div>
             )}
           </div>
         </div>
       </PageWrapper>
+
+      {/* Disconnect confirmation — destructive, so it always asks first */}
+      {revokeTarget && (
+        <ConfirmModal
+          title="Disconnect Integration"
+          message={
+            <p>
+              Are you sure you want to disconnect{' '}
+              <strong className="text-gray-900 dark:text-white">
+                {revokeTarget.provider?.toUpperCase() || 'this provider'}
+              </strong>{' '}
+              from <strong className="text-gray-900 dark:text-white">{client.name}</strong>? New
+              reports won't be able to pull data until it's reconnected.
+            </p>
+          }
+          confirmLabel="Disconnect"
+          onConfirm={confirmRevoke}
+          onCancel={() => setRevokeTarget(null)}
+          busy={isRevoking}
+        />
+      )}
+
+      {/* Share via Email / WhatsApp */}
+      {shareTarget && (
+        <ShareReportModal
+          report={shareTarget}
+          clientName={client.name}
+          initialEmail={client.email}
+          onClose={() => setShareTarget(null)}
+        />
+      )}
+
+      {/* Delete confirmation — permanent, so it always asks first */}
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete Report"
+          message={
+            <p>
+              Are you sure you want to permanently delete the report for{' '}
+              <strong className="text-gray-900 dark:text-white">
+                {formatSafeDate(deleteTarget.period_start)} - {formatSafeDate(deleteTarget.period_end)}
+              </strong>{' '}
+              on <strong className="text-gray-900 dark:text-white">{client.name}</strong>? This
+              cannot be undone.
+            </p>
+          }
+          confirmLabel="Delete Report"
+          onConfirm={confirmDeleteReport}
+          onCancel={() => setDeleteTarget(null)}
+          busy={isDeletingReport}
+        />
+      )}
     </>
   );
 }
 
-function ReportRow({ report }) {
+function ReportRow({ report, onDownload, onShare, onDelete }) {
   const getStatusBadge = (status) => {
     const badges = {
       completed: { class: 'border-green-600 text-green-600 dark:border-green-700 dark:text-green-400', icon: CheckCircle, text: 'Completed' },
+      pulling_data: { class: 'border-blue-600 text-blue-600 dark:border-blue-700 dark:text-blue-400', icon: Clock, text: 'Pulling Data' },
+      analyzing: { class: 'border-blue-600 text-blue-600 dark:border-blue-700 dark:text-blue-400', icon: Clock, text: 'Analyzing' },
+      rendering: { class: 'border-blue-600 text-blue-600 dark:border-blue-700 dark:text-blue-400', icon: Clock, text: 'Building PDF' },
       processing: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Processing' },
       pending: { class: 'border-yellow-600 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400', icon: Clock, text: 'Pending' },
       failed: { class: 'border-red-600 text-red-600 dark:border-red-700 dark:text-red-400', icon: AlertCircle, text: 'Failed' },
@@ -241,23 +363,53 @@ function ReportRow({ report }) {
     );
   };
 
+  // Download & share need the generated PDF, so they stay visible but are
+  // disabled (with an explanatory tooltip) until the report is completed.
+  const isReady = report.status === 'completed';
+  const readyButtonClass = 'p-2 border border-gray-300 dark:border-gray-700 rounded text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500 transition-colors';
+  const disabledButtonClass = 'p-2 border border-gray-200 dark:border-gray-800 rounded text-gray-300 dark:text-gray-600 cursor-not-allowed';
+
+  // The info area is the link; the action buttons sit outside it so we never
+  // nest interactive elements inside an anchor.
   return (
-    <Link
-      to={`/reports/${report.id}`}
-      className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-100 dark:hover:bg-dark-50 hover:border-gray-300 dark:hover:border-gray-700 transition-colors"
-    >
-      <div>
+    <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-100 dark:hover:bg-dark-50 hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
+      <Link to={`/reports/${report.id}`} className="flex-1 min-w-0">
         <p className="font-light text-gray-900 dark:text-white uppercase tracking-wide">
           {formatSafeDate(report.period_start)} - {formatSafeDate(report.period_end)}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-500">
           Created {format(new Date(report.created_at), 'MMM d, yyyy')}
         </p>
-      </div>
-      <div className="flex items-center space-x-3">
+      </Link>
+      <div className="flex items-center space-x-3 flex-shrink-0">
         {getStatusBadge(report.status)}
-        <ExternalLink className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+        <button
+          onClick={onDownload}
+          disabled={!isReady}
+          aria-label="Download PDF"
+          title={isReady ? 'Download PDF' : 'Report not ready yet'}
+          className={isReady ? readyButtonClass : disabledButtonClass}
+        >
+          <Download className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onShare}
+          disabled={!isReady}
+          aria-label="Share report"
+          title={isReady ? 'Share via Email or WhatsApp' : 'Report not ready yet'}
+          className={isReady ? readyButtonClass : disabledButtonClass}
+        >
+          <Share2 className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onDelete}
+          aria-label="Delete report"
+          title="Delete report"
+          className="p-2 border border-gray-300 dark:border-gray-700 rounded text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:border-red-600 dark:hover:border-red-700 transition-colors"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
-    </Link>
+    </div>
   );
 }

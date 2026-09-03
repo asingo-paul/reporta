@@ -1,3 +1,4 @@
+mod audit;
 mod email;
 mod extractors;
 mod routes;
@@ -50,19 +51,63 @@ async fn main() -> anyhow::Result<()> {
         mailer: Arc::new(mailer),
     };
 
-    let cors = if config.is_production() {
-        CorsLayer::new()
-            .allow_origin(
-                config
-                    .frontend_base_url
-                    .parse::<HeaderValue>()
-                    .expect("FRONTEND_BASE_URL must be a valid origin"),
-            )
-            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
-            .allow_headers(tower_http::cors::Any)
-    } else {
-        CorsLayer::permissive()
-    };
+    // Background report worker, embedded in the API process. It used to run
+    // only as a separate `reporta-worker` binary/container which was easy to
+    // forget in dev — when it wasn't running, queued reports sat in
+    // "Queued" forever and the UI never progressed. Running it here means a
+    // plain `cargo run` / `./dev.sh` always drains the job queue.
+    {
+        use reporta_insights::{InsightsEngine, OpenAIClient};
+        use reporta_reports::{run_worker_loop, ReportGenerationService};
+
+        let llm = OpenAIClient::new(
+            config.openai_api_key.clone().unwrap_or_default(),
+            config.openai_model.clone(),
+            config.openai_base_url.clone(),
+        );
+        let worker_config = config.clone();
+        let worker_pool = state.pool.clone();
+        let worker_cipher = TokenCipher::from_base64_key(&config.token_encryption_key_b64)
+            .expect("invalid TOKEN_ENCRYPTION_KEY");
+        let service = ReportGenerationService::new(
+            ConnectionService::new(),
+            InsightsEngine::new(llm),
+            config.upload_dir.clone(),
+        );
+        let worker_id = format!("in-process-{}", uuid::Uuid::new_v4());
+        tokio::spawn(async move {
+            tracing::info!("in-process report worker starting: {worker_id}");
+            run_worker_loop(worker_pool, worker_config, worker_cipher, service, worker_id).await;
+        });
+    }
+
+    // CORS must echo the exact frontend origin and allow credentials so the
+    // HttpOnly refresh cookie can be set and sent on cross-origin requests
+    // from the Vite dev server (localhost:5173 -> localhost:8080). A
+    // wildcard `*` origin is invalid for credentialed requests per the CORS
+    // spec, so the old permissive layer silently broke session refresh.
+    let mut allowed_origins = vec![config
+        .frontend_base_url
+        .parse::<HeaderValue>()
+        .expect("FRONTEND_BASE_URL must be a valid origin")];
+    if !config.is_production() {
+        for dev_origin in ["http://localhost:5173", "http://127.0.0.1:5173"] {
+            allowed_origins.push(dev_origin.parse::<HeaderValue>().expect("valid dev origin"));
+        }
+    }
+
+    let cors = CorsLayer::new()
+        .allow_origin(allowed_origins)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
+        // With `allow_credentials(true)` the header list must be explicit —
+        // combining credentials with the `Any` wildcard makes tower-http
+        // panic at startup (and is invalid per the CORS spec).
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+        ])
+        .allow_credentials(true);
 
     let app = routes::build_router(state.clone())
         .layer(cors)
@@ -71,6 +116,13 @@ async fn main() -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", config.port);
     tracing::info!(addr, "reporta-api listening");
     let listener = tokio::net::TcpListener::bind(&addr).await.expect("failed to bind port");
-    axum::serve(listener, app).await.expect("server error");
+    // `with_connect_info` makes the peer socket address available to the
+    // `ClientIp` extractor so audit rows record where requests came from.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("server error");
     Ok(())
 }

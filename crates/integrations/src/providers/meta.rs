@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use chrono::NaiveDate;
 use reporta_common::metrics::RawMetrics;
+use reporta_common::{format_change, BreakdownSection};
 use serde::Deserialize;
 
 use crate::error::IntegrationError;
@@ -92,6 +95,8 @@ struct InsightsResponse {
 #[derive(Deserialize, Default)]
 struct InsightRow {
     #[serde(default)]
+    campaign_name: Option<String>,
+    #[serde(default)]
     spend: Option<String>,
     #[serde(default)]
     impressions: Option<String>,
@@ -101,6 +106,15 @@ struct InsightRow {
     actions: Option<Vec<ActionValue>>,
     #[serde(default)]
     action_values: Option<Vec<ActionValue>>,
+}
+
+fn purchase_sum(actions: Option<Vec<ActionValue>>) -> f64 {
+    actions
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|a| a.action_type == "offsite_conversion.fb_pixel_purchase" || a.action_type == "purchase")
+        .filter_map(|a| a.value.parse::<f64>().ok())
+        .sum()
 }
 
 #[derive(Deserialize)]
@@ -146,27 +160,86 @@ pub async fn fetch_metrics(
     let parsed: InsightsResponse = resp.json().await?;
     let row = parsed.data.into_iter().next().unwrap_or_default();
 
-    let conversions = row
-        .actions
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|a| a.action_type == "offsite_conversion.fb_pixel_purchase" || a.action_type == "purchase")
-        .filter_map(|a| a.value.parse::<f64>().ok())
-        .sum();
-
-    let revenue = row
-        .action_values
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|a| a.action_type == "offsite_conversion.fb_pixel_purchase" || a.action_type == "purchase")
-        .filter_map(|a| a.value.parse::<f64>().ok())
-        .sum();
-
     Ok(RawMetrics {
         impressions: row.impressions.and_then(|v| v.parse().ok()).unwrap_or(0),
         clicks: row.clicks.and_then(|v| v.parse().ok()).unwrap_or(0),
         spend: row.spend.and_then(|v| v.parse().ok()).unwrap_or(0.0),
-        conversions,
-        revenue,
+        conversions: purchase_sum(row.actions),
+        revenue: purchase_sum(row.action_values),
+        ..RawMetrics::default()
     })
+}
+
+/// Spend/conversions by campaign, this period vs previous — so the report can
+/// say which campaigns moved the account. Best-effort.
+pub async fn fetch_breakdowns(
+    http: &reqwest::Client,
+    access_token: &str,
+    ad_account_id: &str,
+    cur_start: NaiveDate,
+    cur_end: NaiveDate,
+    prev_start: NaiveDate,
+    prev_end: NaiveDate,
+) -> Vec<BreakdownSection> {
+    async fn by_campaign(
+        http: &reqwest::Client,
+        token: &str,
+        acct: &str,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> HashMap<String, (f64, f64, f64)> {
+        let time_range =
+            serde_json::json!({ "since": start.format("%Y-%m-%d").to_string(), "until": end.format("%Y-%m-%d").to_string() })
+                .to_string();
+        let url = format!("https://graph.facebook.com/{GRAPH_VERSION}/{acct}/insights");
+        let resp = http
+            .get(url)
+            .query(&[
+                ("fields", "campaign_name,spend,clicks,actions,action_values"),
+                ("level", "campaign"),
+                ("time_range", &time_range),
+                ("limit", "50"),
+                ("access_token", &token.to_string()),
+            ])
+            .send()
+            .await;
+        let mut out = HashMap::new();
+        if let Ok(resp) = resp {
+            if let Ok(parsed) = resp.json::<InsightsResponse>().await {
+                for row in parsed.data {
+                    let name = row.campaign_name.clone().unwrap_or_else(|| "(unnamed)".to_string());
+                    let spend = row.spend.and_then(|v| v.parse().ok()).unwrap_or(0.0);
+                    let conv = purchase_sum(row.actions);
+                    let rev = purchase_sum(row.action_values);
+                    out.insert(name, (spend, conv, rev));
+                }
+            }
+        }
+        out
+    }
+
+    let cur = by_campaign(http, access_token, ad_account_id, cur_start, cur_end).await;
+    if cur.is_empty() {
+        return Vec::new();
+    }
+    let prev = by_campaign(http, access_token, ad_account_id, prev_start, prev_end).await;
+
+    let mut ordered: Vec<(&String, &(f64, f64, f64))> = cur.iter().collect();
+    ordered.sort_by(|a, b| b.1 .0.partial_cmp(&a.1 .0).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut sec = BreakdownSection::new(
+        "Meta spend by campaign (this period vs previous)",
+        vec!["Campaign", "Spend", "Change", "Conversions", "Revenue"],
+    );
+    for (name, (spend, conv, rev)) in ordered.into_iter().take(8) {
+        let prev_spend = prev.get(name).map(|p| p.0).unwrap_or(0.0);
+        sec.push_row(vec![
+            name.clone(),
+            format!("${spend:.2}"),
+            format_change(*spend, prev_spend),
+            format!("{conv:.0}"),
+            format!("${rev:.2}"),
+        ]);
+    }
+    if sec.is_empty() { Vec::new() } else { vec![sec] }
 }

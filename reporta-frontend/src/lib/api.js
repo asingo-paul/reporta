@@ -2,11 +2,16 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
+export { API_BASE_URL };
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  // Send/accept cookies on cross-origin API calls so the backend's HttpOnly
+  // refresh cookie (the primary session mechanism) is stored and returned.
+  withCredentials: true,
 });
 
 // Request interceptor to add auth token
@@ -21,41 +26,64 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle token refresh
+// Response interceptor: transparently renew an expired access token.
+//
+// The refresh token normally lives in an HttpOnly cookie (never exposed to
+// JS); a localStorage copy is kept purely as a fallback for environments
+// where cookies are unavailable. On a 401 we hit /auth/refresh once, store
+// the new access token and replay the original request. We intentionally do
+// NOT hard-redirect to /login any more: a failed refresh only clears the
+// stored token and lets ProtectedRoute handle navigation, so users aren't
+// yanked out of the app on a transient failure.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/refresh')
+    ) {
       originalRequest._retry = true;
 
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          throw new Error('No refresh token');
-        }
-
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refresh_token: refreshToken,
-        });
-
-        const { access_token } = response.data;
-        localStorage.setItem('access_token', access_token);
-
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+      const newToken = await silentRefresh();
+      if (newToken) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
-      } catch (refreshError) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
       }
+      // Session is really gone (explicit logout or 30 days of inactivity).
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     }
 
     return Promise.reject(error);
   }
 );
+
+/**
+ * Renew the access token using the HttpOnly refresh cookie, falling back to
+ * the stored refresh token for cookie-less environments. Resolves with the
+ * new access token, or null when the session is really gone.
+ */
+export async function silentRefresh() {
+  try {
+    const stored = localStorage.getItem('refresh_token');
+    const response = await axios.post(
+      `${API_BASE_URL}/auth/refresh`,
+      stored ? { refresh_token: stored } : {},
+      { withCredentials: true }
+    );
+    const { access_token, refresh_token } = response.data;
+    if (access_token) localStorage.setItem('access_token', access_token);
+    if (refresh_token) localStorage.setItem('refresh_token', refresh_token);
+    return access_token || null;
+  } catch {
+    return null;
+  }
+}
 
 // Auth APIs
 export const authAPI = {
@@ -83,6 +111,7 @@ export const reportsAPI = {
   get: (reportId) => api.get(`/reports/${reportId}`),
   generate: (clientId, data) => api.post(`/clients/${clientId}/reports`, data),
   updateSummary: (reportId, data) => api.patch(`/reports/${reportId}`, data),
+  delete: (reportId) => api.delete(`/reports/${reportId}`),
   downloadPDF: (reportId) => api.get(`/reports/${reportId}/pdf`, { responseType: 'blob' }),
   send: (reportId, data) => api.post(`/reports/${reportId}/send`, data),
   /**
@@ -102,6 +131,7 @@ export const reportsAPI = {
       try {
         const res = await fetch(`${API_BASE_URL}/reports/${reportId}/events`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {
@@ -171,6 +201,15 @@ export const billingAPI = {
   createCheckoutSession: () => api.post('/billing/checkout-session'),
   createPortalSession: () => api.post('/billing/portal'),
   getSubscription: () => api.get('/billing/subscription'),
+  // Actively pulls the account's subscription from Stripe so a finished
+  // payment is reflected immediately — no waiting on the async webhook.
+  syncSubscription: () => api.post('/billing/sync'),
+};
+
+// Audit trail APIs — the confirmation log of every recorded create/update/
+// delete/send action, newest first (see Settings → Activity).
+export const auditAPI = {
+  list: (params) => api.get('/audit-logs', { params }),
 };
 
 export default api;

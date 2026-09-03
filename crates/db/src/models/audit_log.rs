@@ -40,4 +40,28 @@ impl AuditLog {
         .await?;
         Ok(())
     }
+
+    /// Most recent audit entries for one user, newest first. Scoped to the
+    /// whole account (all clients/reports the user touched) because the
+    /// activity log answers "what happened in my workspace", not "what
+    /// happened to one row". `limit` is clamped by the caller.
+    pub async fn list_for_user(
+        pool: &PgPool,
+        user_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<AuditLog>, sqlx::Error> {
+        sqlx::query_as::<_, AuditLog>(
+            r#"select id, user_id, action, target_type, target_id, metadata, ip_address, created_at
+               from audit_logs
+               where user_id = $1
+               order by created_at desc
+               limit $2 offset $3"#,
+        )
+        .bind(user_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+    }
 }

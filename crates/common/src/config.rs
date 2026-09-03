@@ -110,8 +110,14 @@ impl Config {
             redis_url: required("REDIS_URL")?,
 
             jwt_secret: required("JWT_SECRET")?,
-            access_token_ttl_secs: optional_parsed("ACCESS_TOKEN_TTL_SECS", 900i64)?,
-            refresh_token_ttl_secs: optional_parsed("REFRESH_TOKEN_TTL_SECS", 1_209_600i64)?,
+            // Long-lived sessions: 12h access tokens (silently refreshed by
+            // the SPA via the refresh endpoint) and a 30-day *sliding* refresh
+            // window — every refresh re-issues the refresh token for the full
+            // 30 days, so an actively-used account stays signed in until it
+            // explicitly logs out. Override via ACCESS_TOKEN_TTL_SECS /
+            // REFRESH_TOKEN_TTL_SECS.
+            access_token_ttl_secs: optional_parsed("ACCESS_TOKEN_TTL_SECS", 43_200i64)?,
+            refresh_token_ttl_secs: optional_parsed("REFRESH_TOKEN_TTL_SECS", 2_592_000i64)?,
             token_encryption_key_b64: token_key,
 
             openai_api_key: optional("OPENAI_API_KEY"),

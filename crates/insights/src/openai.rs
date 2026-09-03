@@ -24,9 +24,12 @@ struct ChatMessage<'a> {
 #[derive(Serialize)]
 struct ChatCompletionRequest<'a> {
     model: &'a str,
-    /// Uses the newer `max_completion_tokens` field rather than the legacy
-    /// `max_tokens`, which some newer models (the reasoning variants) reject.
-    max_completion_tokens: u32,
+    /// `max_tokens` is the field understood by the broadest set of
+    /// OpenAI-compatible providers, including Google's Gemini compatibility
+    /// endpoint and Groq. Pair this client with a non-reasoning model (e.g.
+    /// `gemini-2.0-flash`): a reasoning model can spend the whole budget on
+    /// hidden thinking and return empty content.
+    max_tokens: u32,
     messages: Vec<ChatMessage<'a>>,
 }
 
@@ -67,7 +70,10 @@ impl OpenAIClient {
             // so a stalled completion endpoint would hang report generation.
             http: reqwest::Client::builder()
                 .connect_timeout(std::time::Duration::from_secs(10))
-                .timeout(std::time::Duration::from_secs(60))
+                // A 4-sentence completion is small; cap the wait so a slow or
+                // overloaded provider degrades to the fallback quickly rather
+                // than stalling report generation.
+                .timeout(std::time::Duration::from_secs(25))
                 .build()
                 .expect("failed to build OpenAI HTTP client"),
             api_key,
@@ -79,7 +85,7 @@ impl OpenAIClient {
     pub async fn complete(&self, system_prompt: &str, user_message: &str) -> Result<String, InsightsError> {
         let body = ChatCompletionRequest {
             model: &self.model,
-            max_completion_tokens: 1024,
+            max_tokens: 900,
             messages: vec![
                 ChatMessage {
                     role: "system",

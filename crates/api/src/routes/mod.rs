@@ -1,3 +1,4 @@
+pub mod audit_logs;
 pub mod auth;
 pub mod billing;
 pub mod clients;
@@ -6,7 +7,7 @@ pub mod reports;
 pub mod template;
 pub mod uploads;
 
-use axum::routing::{delete, get, patch, post};
+use axum::routing::{delete, get, post};
 use axum::Router;
 use reporta_common::AppError;
 use regex::Regex;
@@ -54,9 +55,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/{provider}/callback", get(integrations::callback));
 
     let report_routes = Router::new()
-        .route("/{report_id}", get(reports::get_report))
+        .route(
+            "/{report_id}",
+            get(reports::get_report).patch(reports::update_summary).delete(reports::delete_report),
+        )
         .route("/{report_id}/events", get(reports::report_events))
-        .route("/{report_id}", patch(reports::update_summary))
         .route("/{report_id}/pdf", get(reports::download_pdf))
         .route("/{report_id}/send", post(reports::send_report));
 
@@ -64,10 +67,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/checkout-session", post(billing::create_checkout_session))
         .route("/portal", post(billing::create_portal_session))
         .route("/subscription", get(billing::get_subscription))
+        .route("/sync", post(billing::sync_subscription))
         .route("/webhook", post(billing::webhook));
 
     let upload_routes =
         Router::new().route("/{filename}", get(uploads::serve_upload));
+
+    let audit_routes =
+        Router::new().route("/", get(audit_logs::list_audit_logs));
 
     let api_router = Router::new()
         .route("/health", get(|| async { "OK" }))
@@ -77,6 +84,7 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/integrations", integration_routes)
         .nest("/reports", report_routes)
         .nest("/billing", billing_routes)
+        .nest("/audit-logs", audit_routes)
         .nest("/uploads", upload_routes);
 
     Router::new()

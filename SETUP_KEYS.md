@@ -43,8 +43,8 @@ There are **two** `.env` files to fill in:
 |-----|-----------|-----------------|
 | `JWT_SECRET` | Backend `.env` | `openssl rand -base64 48` (any long random string — signs JWT access tokens) |
 | `TOKEN_ENCRYPTION_KEY` | Backend `.env` | `openssl rand -base64 32` — must decode to **exactly 32 bytes** (AES-256-GCM encryption of OAuth tokens at rest). Make a fresh one per environment; never reuse across dev/staging/prod. |
-| `ACCESS_TOKEN_TTL_SECS` | Backend `.env` | `900` (15 min, default) |
-| `REFRESH_TOKEN_TTL_SECS` | Backend `.env` | `1209600` (14 days, default) |
+| `ACCESS_TOKEN_TTL_SECS` | Backend `.env` | `43200` (12 h, default) |
+| `REFRESH_TOKEN_TTL_SECS` | Backend `.env` | `2592000` (30 days, default; sliding window — every refresh re-issues it for the full 30 days, so active users stay signed in until they log out) |
 ---
 
 ## 4. AI summaries — any OpenAI-compatible provider
@@ -61,8 +61,8 @@ The backend speaks the OpenAI Chat Completions protocol with a **configurable en
 
 | Provider | `OPENAI_BASE_URL` | Example `OPENAI_MODEL` | Get key from |
 |----------|-------------------|------------------------|--------------|
-| **Google Gemini** (recommended) | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` | `gemini-3.7-flash` | **https://aistudio.google.com/apikey** |
-| Groq | `https://api.groq.com/openai/v1/chat/completions` | `llama-3.3-70b-versatile` | https://console.groq.com/keys |
+| **Google Gemini** (recommended) | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` | `gemini-3.6-flash` (use a **non-thinking** model) | **https://aistudio.google.com/apikey** |
+| Groq | `https://api.groq.com/openai/v1/chat/completions` | `openai/gpt-oss-20b` (or `llama-3.3-70b-versatile` if your key has access) | https://console.groq.com/keys |
 | OpenAI (paid only) | `https://api.openai.com/v1/chat/completions` | `gpt-4o-mini` | https://platform.openai.com/api-keys |
 
 ---

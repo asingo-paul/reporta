@@ -12,7 +12,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::extractors::AuthUser;
+use crate::audit;
+use crate::extractors::{AuthUser, ClientIp};
 use crate::state::AppState;
 
 const REPORT_PERIOD_DAYS: i64 = 30;
@@ -64,6 +65,7 @@ fn resolve_period(
 pub async fn generate_report(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
+    ClientIp(ip): ClientIp,
     Path(client_id): Path<Uuid>,
     body: Option<Json<GenerateReportRequest>>,
 ) -> AppResult<Json<Report>> {
@@ -76,6 +78,19 @@ pub async fn generate_report(
     let report = Report::create(&state.pool, client_id, user_id, period_start, period_end).await?;
     ReportJob::enqueue(&state.pool, report.id).await?;
 
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "report.generated",
+        Some("report"),
+        Some(report.id),
+        serde_json::json!({
+            "client_id": client_id,
+            "period_start": period_start.to_string(),
+            "period_end": period_end.to_string(),
+        }),
+        ip.as_deref(),
+    );
     Ok(Json(report))
 }
 
@@ -150,6 +165,7 @@ pub struct UpdateSummaryRequest {
 pub async fn update_summary(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
+    ClientIp(ip): ClientIp,
     Path(report_id): Path<Uuid>,
     Json(req): Json<UpdateSummaryRequest>,
 ) -> AppResult<Json<Report>> {
@@ -157,12 +173,70 @@ pub async fn update_summary(
     let report = Report::update_ai_summary_by_user(&state.pool, report_id, user_id, &req.ai_summary)
         .await?
         .ok_or(AppError::NotFound)?;
+
+    // The edited text itself stays out of the log — only the fact and size
+    // of the edit are recorded, so the audit trail can't leak client copy.
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "report.summary_edited",
+        Some("report"),
+        Some(report.id),
+        serde_json::json!({ "client_id": report.client_id, "length": req.ai_summary.len() }),
+        ip.as_deref(),
+    );
     Ok(Json(report))
+}
+
+/// Removes a report and (best-effort) its generated PDF from disk. The
+/// `report_jobs` row cascades away via the schema, so a queued/running job
+/// for a deleted report simply disappears.
+pub async fn delete_report(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    ClientIp(ip): ClientIp,
+    Path(report_id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    let report = Report::find_for_user(&state.pool, report_id, user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let deleted = Report::delete_for_user(&state.pool, report_id, user_id).await?;
+    if !deleted {
+        return Err(AppError::NotFound);
+    }
+
+    // The file is only reachable through this report row, so remove it too —
+    // but a stray file must never block the delete (it can be GC'd later).
+    if let Some(pdf_path) = &report.pdf_path {
+        if let Err(e) = tokio::fs::remove_file(pdf_path).await {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!(?e, report_id = %report_id, "failed to remove deleted report's PDF");
+            }
+        }
+    }
+
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "report.deleted",
+        Some("report"),
+        Some(report_id),
+        serde_json::json!({
+            "client_id": report.client_id,
+            "period_start": report.period_start.to_string(),
+            "period_end": report.period_end.to_string(),
+            "was_sent": report.sent_at.is_some(),
+        }),
+        ip.as_deref(),
+    );
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
 
 pub async fn download_pdf(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
+    ClientIp(ip): ClientIp,
     Path(report_id): Path<Uuid>,
 ) -> AppResult<impl IntoResponse> {
     let report = Report::find_for_user(&state.pool, report_id, user_id)
@@ -170,6 +244,18 @@ pub async fn download_pdf(
         .ok_or(AppError::NotFound)?;
     let path = report.pdf_path.ok_or_else(|| AppError::Validation("report is not ready yet".to_string()))?;
     let bytes = tokio::fs::read(&path).await.map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+
+    // Access log for sensitive exports: reports contain a client's ad data,
+    // so every download is part of the confirmation trail.
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "report.pdf_downloaded",
+        Some("report"),
+        Some(report.id),
+        serde_json::json!({ "client_id": report.client_id }),
+        ip.as_deref(),
+    );
 
     Ok((
         [
@@ -194,6 +280,7 @@ pub struct SendReportRequest {
 pub async fn send_report(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
+    ClientIp(ip): ClientIp,
     Path(report_id): Path<Uuid>,
     Json(req): Json<SendReportRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
@@ -217,5 +304,21 @@ pub async fn send_report(
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
     Report::mark_sent(&state.pool, report_id).await?;
+
+    // Deliveries are the highest-stakes report action (the client's data
+    // leaves the workspace), so the log records exactly who received it.
+    audit::record(
+        &state.pool,
+        Some(user_id),
+        "report.sent",
+        Some("report"),
+        Some(report_id),
+        serde_json::json!({
+            "client_id": report.client_id,
+            "to_email": req.to_email,
+            "to_name": req.to_name,
+        }),
+        ip.as_deref(),
+    );
     Ok(Json(serde_json::json!({ "ok": true })))
 }

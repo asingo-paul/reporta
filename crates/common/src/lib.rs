@@ -1,8 +1,10 @@
+pub mod breakdown;
 pub mod config;
 pub mod error;
 pub mod metrics;
 pub mod report_status;
 
+pub use breakdown::{format_change, BreakdownSection};
 pub use config::Config;
 pub use error::{AppError, AppResult};
 pub use report_status::ReportStatus;

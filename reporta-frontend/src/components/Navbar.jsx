@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, Settings, Sun, Moon, Menu, X } from 'lucide-react';
+import { LogOut, Settings, Sun, Moon, Menu, X, Receipt } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { useState } from 'react';
@@ -63,6 +63,16 @@ export default function Navbar() {
                 }`}
               >
                 Clients
+              </Link>
+              <Link
+                to="/settings?tab=billing"
+                className={`text-xs uppercase tracking-widest transition-colors ${
+                  isActive('/settings') && location.search.includes('tab=billing')
+                    ? 'text-gray-900 dark:text-white font-medium'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                Billing
               </Link>
             </div>
           </div>
@@ -167,6 +177,18 @@ export default function Navbar() {
                 onClick={closeMobileMenu}
               >
                 Clients
+              </Link>
+              <Link
+                to="/settings?tab=billing"
+                className={`flex items-center space-x-3 px-4 py-3 text-sm uppercase tracking-wider transition-colors ${
+                  isActive('/settings') && location.search.includes('tab=billing')
+                    ? 'text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-900 font-medium'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-900'
+                }`}
+                onClick={closeMobileMenu}
+              >
+                <Receipt className="h-4 w-4" />
+                <span>Billing</span>
               </Link>
               <Link
                 to="/settings"
