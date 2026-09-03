@@ -1,0 +1,17 @@
+[package]
+name = "reporta-pdf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+reporta-common.workspace = true
+typst = "0.15.1"
+typst-pdf = "0.15.1"
+typst-kit = { version = "0.15.1", default-features = false, features = ["embedded-fonts"] }
+typst-layout = "0.15.1"
+comemo = "0.5.1"
+plotters = { version = "0.3.7", default-features = false, features = ["svg_backend", "line_series", "area_series"] }
+chrono.workspace = true
+thiserror.workspace = true
+regex = "1.13.1"

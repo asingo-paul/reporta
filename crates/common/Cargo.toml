@@ -1,0 +1,19 @@
+[package]
+name = "reporta-common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+dotenvy.workspace = true
+axum = "0.8.9"
+base64 = "0.23.1"
+sqlx.workspace = true
