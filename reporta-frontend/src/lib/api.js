@@ -192,7 +192,11 @@ export const templateAPI = {
 
 // Integrations APIs
 export const integrationsAPI = {
-  authorize: (provider, clientId) => api.get(`/integrations/${provider}/authorize`, { params: { client_id: clientId } }),
+  // `shop` is required for, and only used by, Shopify (its store domain,
+  // e.g. "my-store.myshopify.com" — chosen before the OAuth redirect since
+  // Shopify's authorize URL is per-store).
+  authorize: (provider, clientId, shop) =>
+    api.get(`/integrations/${provider}/authorize`, { params: { client_id: clientId, shop } }),
   // Callback is handled by backend redirect
 };
 

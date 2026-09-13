@@ -89,7 +89,7 @@ export default function Settings() {
 // account; sessions/pageviews need Google Analytics).
 const METRIC_GROUPS = [
   {
-    group: 'Advertising (Meta / Google Ads)',
+    group: 'Advertising (Meta / Google Ads / TikTok / LinkedIn)',
     metrics: [
       { key: 'impressions', label: 'Impressions' },
       { key: 'clicks', label: 'Clicks' },
@@ -112,6 +112,22 @@ const METRIC_GROUPS = [
       { key: 'page_views', label: 'Page Views' },
       { key: 'engagement_rate', label: 'Engagement Rate' },
       { key: 'avg_engagement_time', label: 'Avg. Engagement Time' },
+    ],
+  },
+  {
+    group: 'Organic search (Google Search Console)',
+    metrics: [
+      { key: 'organic_clicks', label: 'Organic Clicks' },
+      { key: 'organic_impressions', label: 'Organic Impressions' },
+      { key: 'organic_ctr', label: 'Organic CTR' },
+      { key: 'avg_search_position', label: 'Avg. Search Position' },
+    ],
+  },
+  {
+    group: 'Commerce (Shopify)',
+    metrics: [
+      { key: 'orders', label: 'Orders' },
+      { key: 'avg_order_value', label: 'Avg. Order Value' },
     ],
   },
 ];

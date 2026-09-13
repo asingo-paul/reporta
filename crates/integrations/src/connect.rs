@@ -47,6 +47,9 @@ impl ConnectionService {
     /// Builds the URL the frontend should redirect the browser to in order
     /// to start the OAuth consent flow, and records the CSRF-state + PKCE
     /// verifier server-side so the callback can validate them.
+    ///
+    /// `shop_domain` (e.g. `my-store.myshopify.com`) is required for, and only
+    /// used by, Shopify — its authorize/token URLs are per-store.
     pub async fn start_authorization(
         &self,
         pool: &PgPool,
@@ -54,16 +57,39 @@ impl ConnectionService {
         user_id: Uuid,
         client_id: Uuid,
         provider: Provider,
+        shop_domain: Option<String>,
     ) -> Result<String, IntegrationError> {
-        let oauth_cfg = oauth_config_for(provider, config).ok_or(IntegrationError::NotConfigured)?;
         let redirect_uri = Self::redirect_uri(config, provider);
-        let client = oauth::build_client(provider, &oauth_cfg, &redirect_uri)?;
+        let oauth_cfg = oauth_config_for(provider, config).ok_or(IntegrationError::NotConfigured)?;
+
+        // TikTok's authorize URL doesn't fit the generic OAuth2 client (see
+        // oauth.rs) — no PKCE, no scope param, `app_id` instead of `client_id`.
+        if provider == Provider::Tiktok {
+            let state = Uuid::new_v4().to_string();
+            let expires_at = Utc::now() + Duration::minutes(OAUTH_STATE_TTL_MINUTES);
+            OAuthState::create(pool, &state, client_id, user_id, provider, "unused-tiktok-has-no-pkce", &redirect_uri, None, expires_at)
+                .await?;
+
+            let mut url = url::Url::parse(&oauth::auth_url_for(provider, None)?)?;
+            url.query_pairs_mut()
+                .append_pair("app_id", &oauth_cfg.client_id)
+                .append_pair("state", &state)
+                .append_pair("redirect_uri", &redirect_uri);
+            return Ok(url.to_string());
+        }
+
+        if provider == Provider::Shopify && shop_domain.is_none() {
+            return Err(IntegrationError::MissingShopDomain);
+        }
+
+        let client = oauth::build_client(provider, &oauth_cfg, &redirect_uri, shop_domain.as_deref())?;
 
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-        let mut request = client
-            .authorize_url(CsrfToken::new_random)
-            .add_scope(Scope::new(oauth::scope_for(provider).to_string()))
-            .set_pkce_challenge(pkce_challenge);
+        let mut request = client.authorize_url(CsrfToken::new_random).set_pkce_challenge(pkce_challenge);
+        let scope = oauth::scope_for(provider);
+        if !scope.is_empty() {
+            request = request.add_scope(Scope::new(scope.to_string()));
+        }
         for (key, value) in oauth::extra_authorize_params(provider) {
             request = request.add_extra_param(key, value);
         }
@@ -78,6 +104,7 @@ impl ConnectionService {
             provider,
             pkce_verifier.secret(),
             &redirect_uri,
+            shop_domain.as_deref(),
             expires_at,
         )
         .await?;
@@ -100,13 +127,26 @@ impl ConnectionService {
             .await?
             .ok_or(IntegrationError::InvalidState)?;
         let provider = oauth_state.provider;
-
         let oauth_cfg = oauth_config_for(provider, config).ok_or(IntegrationError::NotConfigured)?;
-        let client = oauth::build_client(provider, &oauth_cfg, &oauth_state.redirect_uri)?;
+
+        // TikTok's token exchange returns a TikTok-specific JSON envelope, not
+        // a standard OAuth token response, so it can't go through the shared
+        // `oauth2`-crate client below.
+        if provider == Provider::Tiktok {
+            let (access_token, account) =
+                providers::tiktok::exchange_code(&self.http, &oauth_cfg.client_id, &oauth_cfg.client_secret, code)
+                    .await?;
+            return self
+                .finish_connection(pool, cipher, &oauth_state, access_token, None, None, account)
+                .await;
+        }
+
+        let client =
+            oauth::build_client(provider, &oauth_cfg, &oauth_state.redirect_uri, oauth_state.shop_domain.as_deref())?;
 
         let token = client
             .exchange_code(AuthorizationCode::new(code.to_string()))
-            .set_pkce_verifier(PkceCodeVerifier::new(oauth_state.pkce_verifier))
+            .set_pkce_verifier(PkceCodeVerifier::new(oauth_state.pkce_verifier.clone()))
             .request_async(&self.http)
             .await
             .map_err(|e| IntegrationError::ExchangeFailed(e.to_string()))?;
@@ -139,7 +179,33 @@ impl ConnectionService {
                     .ok_or(IntegrationError::NotConfigured)?;
                 providers::google_ads::fetch_primary_customer(&self.http, &access_token, developer_token).await?
             }
+            Provider::SearchConsole => providers::search_console::fetch_primary_site(&self.http, &access_token).await?,
+            // The shop domain is the account — chosen by the user before the
+            // OAuth redirect even started, not discovered afterward.
+            Provider::Shopify => oauth_state.shop_domain.clone().map(|shop| (shop, None)),
+            Provider::Linkedin => providers::linkedin::fetch_primary_ad_account(&self.http, &access_token).await?,
+            Provider::Tiktok => unreachable!("handled above"),
         };
+
+        self.finish_connection(pool, cipher, &oauth_state, access_token, refresh_token, expires_at, account).await
+    }
+
+    /// Shared tail of the OAuth flow for every provider: validates the
+    /// resolved account exists, encrypts and stores the tokens, and writes the
+    /// audit log entry. Split out so TikTok's bespoke exchange (which never
+    /// touches the generic `oauth2` client above) can share it.
+    #[allow(clippy::too_many_arguments)]
+    async fn finish_connection(
+        &self,
+        pool: &PgPool,
+        cipher: &TokenCipher,
+        oauth_state: &OAuthState,
+        access_token: String,
+        refresh_token: Option<String>,
+        expires_at: Option<chrono::DateTime<Utc>>,
+        account: Option<(String, Option<String>)>,
+    ) -> Result<Connection, IntegrationError> {
+        let provider = oauth_state.provider;
         let (external_account_id, external_account_name) = match account {
             Some((id, name)) => (Some(id), name),
             // Fail fast here rather than storing a connection row whose
@@ -232,7 +298,11 @@ impl ConnectionService {
 
         let oauth_cfg = oauth_config_for(connection.provider, config).ok_or(IntegrationError::NotConfigured)?;
         let redirect_uri = Self::redirect_uri(config, connection.provider);
-        let client = oauth::build_client(connection.provider, &oauth_cfg, &redirect_uri)?;
+        // Shopify's connection stores the shop domain as its account id (it
+        // IS the account); every other provider ignores this.
+        let shop_domain =
+            (connection.provider == Provider::Shopify).then(|| connection.external_account_id.as_deref()).flatten();
+        let client = oauth::build_client(connection.provider, &oauth_cfg, &redirect_uri, shop_domain)?;
 
         let token = client
             .exchange_refresh_token(&RefreshToken::new(refresh_token))
@@ -311,6 +381,22 @@ impl ConnectionService {
                 )
                 .await?
             }
+            Provider::SearchConsole => {
+                providers::search_console::fetch_metrics(&self.http, &access_token, account_id, period_start, period_end)
+                    .await?
+            }
+            Provider::Shopify => {
+                providers::shopify::fetch_metrics(&self.http, &access_token, account_id, period_start, period_end)
+                    .await?
+            }
+            Provider::Tiktok => {
+                providers::tiktok::fetch_metrics(&self.http, &access_token, account_id, period_start, period_end)
+                    .await?
+            }
+            Provider::Linkedin => {
+                providers::linkedin::fetch_metrics(&self.http, &access_token, account_id, period_start, period_end)
+                    .await?
+            }
         };
 
         Connection::mark_synced(pool, connection.id).await?;
@@ -362,6 +448,11 @@ impl ConnectionService {
                 )
                 .await
             }
+            // Not built yet for the newer sources — the headline metrics for
+            // each already work; per-segment detail (e.g. Search Console
+            // queries/pages, Shopify top products, TikTok/LinkedIn campaigns)
+            // is a natural follow-up in the same shape as the ones above.
+            Provider::SearchConsole | Provider::Shopify | Provider::Tiktok | Provider::Linkedin => Vec::new(),
         }
     }
 }

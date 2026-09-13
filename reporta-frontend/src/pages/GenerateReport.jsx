@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, FileText, AlertCircle, CheckCircle, BarChart2, Target, Share2 } from 'lucide-react';
+import { ArrowLeft, Calendar, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { clientsAPI, reportsAPI } from '../lib/api';
+import { PROVIDER_META, providerName } from '../lib/providers';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
 import { format, subDays } from 'date-fns';
@@ -127,28 +128,15 @@ export default function GenerateReport() {
                   Connected Data Sources
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {connections.map((conn) => (
-                    <span key={conn.id} className="inline-flex items-center px-3 py-1 border border-green-600 dark:border-green-700 rounded-full text-sm text-green-600 dark:text-green-400">
-                      {conn.provider === 'ga4' && (
-                        <>
-                          <BarChart2 className="h-4 w-4 mr-1" />
-                          Google Analytics 4
-                        </>
-                      )}
-                      {conn.provider === 'google_ads' && (
-                        <>
-                          <Target className="h-4 w-4 mr-1" />
-                          Google Ads
-                        </>
-                      )}
-                      {conn.provider === 'meta' && (
-                        <>
-                          <Share2 className="h-4 w-4 mr-1" />
-                          Meta Ads
-                        </>
-                      )}
-                    </span>
-                  ))}
+                  {connections.map((conn) => {
+                    const Icon = PROVIDER_META[conn.provider]?.icon;
+                    return (
+                      <span key={conn.id} className="inline-flex items-center px-3 py-1 border border-green-600 dark:border-green-700 rounded-full text-sm text-green-600 dark:text-green-400">
+                        {Icon && <Icon className="h-4 w-4 mr-1" />}
+                        {providerName(conn.provider)}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}

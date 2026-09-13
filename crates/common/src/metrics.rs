@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// The third-party data sources Reporta can connect to. MVP-limited to three,
-/// per spec (`Reporta.pdf`): TikTok/LinkedIn/Bing are explicitly deferred.
+/// The third-party data sources Reporta can connect to. The original MVP spec
+/// (`Reporta.pdf`) limited this to three and deferred TikTok/LinkedIn/Bing;
+/// Search Console, Shopify, TikTok Ads and LinkedIn Ads were added afterward.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "provider", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -10,6 +11,10 @@ pub enum Provider {
     Meta,
     Ga4,
     GoogleAds,
+    SearchConsole,
+    Shopify,
+    Tiktok,
+    Linkedin,
 }
 
 impl fmt::Display for Provider {
@@ -18,6 +23,10 @@ impl fmt::Display for Provider {
             Provider::Meta => "meta",
             Provider::Ga4 => "ga4",
             Provider::GoogleAds => "google_ads",
+            Provider::SearchConsole => "search_console",
+            Provider::Shopify => "shopify",
+            Provider::Tiktok => "tiktok",
+            Provider::Linkedin => "linkedin",
         };
         write!(f, "{s}")
     }
@@ -39,16 +48,21 @@ pub enum RawField {
     PageViews,
     EngagedSessions,
     EngagementTime,
+    OrganicClicks,
+    OrganicImpressions,
+    SearchPosition,
+    Orders,
 }
 
 impl Provider {
-    /// The raw fields this provider's `fetch_metrics` populates. Meta and
-    /// Google Ads are advertising sources (spend/clicks/impressions); GA4 is a
-    /// website-analytics source (sessions/users/pageviews/engagement) that also
-    /// reports key events and revenue.
+    /// The raw fields this provider's `fetch_metrics` populates. Meta, Google
+    /// Ads, TikTok Ads and LinkedIn Ads are all advertising sources with the
+    /// same shape (spend/clicks/impressions/conversions/revenue); GA4 is a
+    /// website-analytics source; Search Console reports organic search
+    /// performance; Shopify reports real store orders and revenue.
     pub fn supplies(&self) -> &'static [RawField] {
         match self {
-            Provider::Meta | Provider::GoogleAds => &[
+            Provider::Meta | Provider::GoogleAds | Provider::Tiktok | Provider::Linkedin => &[
                 RawField::Impressions,
                 RawField::Clicks,
                 RawField::Spend,
@@ -65,6 +79,10 @@ impl Provider {
                 RawField::Conversions,
                 RawField::Revenue,
             ],
+            Provider::SearchConsole => {
+                &[RawField::OrganicClicks, RawField::OrganicImpressions, RawField::SearchPosition]
+            }
+            Provider::Shopify => &[RawField::Orders, RawField::Revenue],
         }
     }
 }
@@ -91,10 +109,18 @@ pub enum MetricKind {
     PageViews,
     EngagementRate,
     AvgEngagementTime,
+    // Organic search (Search Console)
+    OrganicClicks,
+    OrganicImpressions,
+    OrganicCtr,
+    AvgSearchPosition,
+    // Commerce (Shopify)
+    Orders,
+    AvgOrderValue,
 }
 
 impl MetricKind {
-    pub const ALL: [MetricKind; 16] = [
+    pub const ALL: [MetricKind; 22] = [
         MetricKind::Impressions,
         MetricKind::Clicks,
         MetricKind::Spend,
@@ -111,6 +137,12 @@ impl MetricKind {
         MetricKind::PageViews,
         MetricKind::EngagementRate,
         MetricKind::AvgEngagementTime,
+        MetricKind::OrganicClicks,
+        MetricKind::OrganicImpressions,
+        MetricKind::OrganicCtr,
+        MetricKind::AvgSearchPosition,
+        MetricKind::Orders,
+        MetricKind::AvgOrderValue,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -131,6 +163,12 @@ impl MetricKind {
             MetricKind::PageViews => "Page Views",
             MetricKind::EngagementRate => "Engagement Rate",
             MetricKind::AvgEngagementTime => "Avg. Engagement Time",
+            MetricKind::OrganicClicks => "Organic Clicks",
+            MetricKind::OrganicImpressions => "Organic Impressions",
+            MetricKind::OrganicCtr => "Organic CTR",
+            MetricKind::AvgSearchPosition => "Avg. Search Position",
+            MetricKind::Orders => "Orders",
+            MetricKind::AvgOrderValue => "Avg. Order Value",
         }
     }
 
@@ -152,6 +190,12 @@ impl MetricKind {
             MetricKind::PageViews => "page_views",
             MetricKind::EngagementRate => "engagement_rate",
             MetricKind::AvgEngagementTime => "avg_engagement_time",
+            MetricKind::OrganicClicks => "organic_clicks",
+            MetricKind::OrganicImpressions => "organic_impressions",
+            MetricKind::OrganicCtr => "organic_ctr",
+            MetricKind::AvgSearchPosition => "avg_search_position",
+            MetricKind::Orders => "orders",
+            MetricKind::AvgOrderValue => "avg_order_value",
         }
     }
 
@@ -179,6 +223,12 @@ impl MetricKind {
             MetricKind::PageViews => &[RawField::PageViews],
             MetricKind::EngagementRate => &[RawField::EngagedSessions, RawField::Sessions],
             MetricKind::AvgEngagementTime => &[RawField::EngagementTime, RawField::TotalUsers],
+            MetricKind::OrganicClicks => &[RawField::OrganicClicks],
+            MetricKind::OrganicImpressions => &[RawField::OrganicImpressions],
+            MetricKind::OrganicCtr => &[RawField::OrganicClicks, RawField::OrganicImpressions],
+            MetricKind::AvgSearchPosition => &[RawField::SearchPosition],
+            MetricKind::Orders => &[RawField::Orders],
+            MetricKind::AvgOrderValue => &[RawField::Revenue, RawField::Orders],
         }
     }
 
@@ -186,7 +236,7 @@ impl MetricKind {
     pub fn is_percentage(&self) -> bool {
         matches!(
             self,
-            MetricKind::Ctr | MetricKind::ConversionRate | MetricKind::EngagementRate
+            MetricKind::Ctr | MetricKind::ConversionRate | MetricKind::EngagementRate | MetricKind::OrganicCtr
         )
     }
 
@@ -194,7 +244,11 @@ impl MetricKind {
     pub fn is_currency(&self) -> bool {
         matches!(
             self,
-            MetricKind::Spend | MetricKind::Cpc | MetricKind::CostPerConversion | MetricKind::Revenue
+            MetricKind::Spend
+                | MetricKind::Cpc
+                | MetricKind::CostPerConversion
+                | MetricKind::Revenue
+                | MetricKind::AvgOrderValue
         )
     }
 
@@ -214,6 +268,11 @@ impl MetricKind {
             | MetricKind::PageViews
             | MetricKind::EngagementRate
             | MetricKind::AvgEngagementTime => MetricFamily::Traffic,
+            MetricKind::OrganicClicks
+            | MetricKind::OrganicImpressions
+            | MetricKind::OrganicCtr
+            | MetricKind::AvgSearchPosition => MetricFamily::OrganicSearch,
+            MetricKind::Orders | MetricKind::AvgOrderValue => MetricFamily::Commerce,
             _ => MetricFamily::Advertising,
         }
     }
@@ -223,6 +282,8 @@ impl MetricKind {
 pub enum MetricFamily {
     Advertising,
     Traffic,
+    OrganicSearch,
+    Commerce,
 }
 
 /// Every `MetricKind` whose required raw fields are all supplied by at least
@@ -259,6 +320,19 @@ pub struct RawMetrics {
     pub engaged_sessions: i64,
     #[serde(default)]
     pub engagement_time_secs: f64,
+    // Organic search (Search Console). `search_position` is an average, not a
+    // sum, but since only one Search Console connection exists per client this
+    // additive `Add` impl still yields the right value (it's added to zeros
+    // from every other provider).
+    #[serde(default)]
+    pub organic_clicks: i64,
+    #[serde(default)]
+    pub organic_impressions: i64,
+    #[serde(default)]
+    pub search_position: f64,
+    // Commerce (Shopify).
+    #[serde(default)]
+    pub orders: i64,
 }
 
 impl std::ops::Add for RawMetrics {
@@ -276,6 +350,10 @@ impl std::ops::Add for RawMetrics {
             page_views: self.page_views + rhs.page_views,
             engaged_sessions: self.engaged_sessions + rhs.engaged_sessions,
             engagement_time_secs: self.engagement_time_secs + rhs.engagement_time_secs,
+            organic_clicks: self.organic_clicks + rhs.organic_clicks,
+            organic_impressions: self.organic_impressions + rhs.organic_impressions,
+            search_position: self.search_position + rhs.search_position,
+            orders: self.orders + rhs.orders,
         }
     }
 }
@@ -300,6 +378,12 @@ pub struct DerivedMetrics {
     pub page_views: i64,
     pub engagement_rate: f64,
     pub avg_engagement_time: f64,
+    pub organic_clicks: i64,
+    pub organic_impressions: i64,
+    pub organic_ctr: f64,
+    pub avg_search_position: f64,
+    pub orders: i64,
+    pub avg_order_value: f64,
 }
 
 impl From<RawMetrics> for DerivedMetrics {
@@ -311,6 +395,8 @@ impl From<RawMetrics> for DerivedMetrics {
         let roas = safe_div(raw.revenue, raw.spend);
         let engagement_rate = safe_div(raw.engaged_sessions as f64, raw.sessions as f64) * 100.0;
         let avg_engagement_time = safe_div(raw.engagement_time_secs, raw.total_users as f64);
+        let organic_ctr = safe_div(raw.organic_clicks as f64, raw.organic_impressions as f64) * 100.0;
+        let avg_order_value = safe_div(raw.revenue, raw.orders as f64);
 
         DerivedMetrics {
             impressions: raw.impressions,
@@ -329,6 +415,12 @@ impl From<RawMetrics> for DerivedMetrics {
             page_views: raw.page_views,
             engagement_rate,
             avg_engagement_time,
+            organic_clicks: raw.organic_clicks,
+            organic_impressions: raw.organic_impressions,
+            organic_ctr,
+            avg_search_position: raw.search_position,
+            orders: raw.orders,
+            avg_order_value,
         }
     }
 }
@@ -352,6 +444,12 @@ impl DerivedMetrics {
             MetricKind::PageViews => self.page_views as f64,
             MetricKind::EngagementRate => self.engagement_rate,
             MetricKind::AvgEngagementTime => self.avg_engagement_time,
+            MetricKind::OrganicClicks => self.organic_clicks as f64,
+            MetricKind::OrganicImpressions => self.organic_impressions as f64,
+            MetricKind::OrganicCtr => self.organic_ctr,
+            MetricKind::AvgSearchPosition => self.avg_search_position,
+            MetricKind::Orders => self.orders as f64,
+            MetricKind::AvgOrderValue => self.avg_order_value,
         }
     }
 
@@ -377,6 +475,8 @@ pub fn format_metric_value(kind: MetricKind, value: f64) -> String {
         format!("{value:.2}%")
     } else if kind.is_duration() {
         format_duration_secs(value)
+    } else if matches!(kind, MetricKind::AvgSearchPosition) {
+        format!("{value:.1}")
     } else if matches!(
         kind,
         MetricKind::Impressions
@@ -386,6 +486,9 @@ pub fn format_metric_value(kind: MetricKind, value: f64) -> String {
             | MetricKind::TotalUsers
             | MetricKind::NewUsers
             | MetricKind::PageViews
+            | MetricKind::OrganicClicks
+            | MetricKind::OrganicImpressions
+            | MetricKind::Orders
     ) {
         group_thousands(&format!("{:.0}", value.round()))
     } else {

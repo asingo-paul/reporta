@@ -2,6 +2,8 @@
 pub enum IntegrationError {
     #[error("provider is not configured on this server (missing client id/secret)")]
     NotConfigured,
+    #[error("a store domain is required to connect Shopify (e.g. your-store.myshopify.com)")]
+    MissingShopDomain,
     #[error("invalid or expired OAuth state")]
     InvalidState,
     #[error("OAuth code exchange failed: {0}")]
