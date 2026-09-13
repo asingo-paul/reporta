@@ -16,6 +16,10 @@ fn parse_provider(raw: &str) -> AppResult<Provider> {
         "meta" => Ok(Provider::Meta),
         "ga4" => Ok(Provider::Ga4),
         "google_ads" => Ok(Provider::GoogleAds),
+        "search_console" => Ok(Provider::SearchConsole),
+        "shopify" => Ok(Provider::Shopify),
+        "tiktok" => Ok(Provider::Tiktok),
+        "linkedin" => Ok(Provider::Linkedin),
         _ => Err(AppError::Validation(format!("unknown provider: {raw}"))),
     }
 }
@@ -23,6 +27,9 @@ fn parse_provider(raw: &str) -> AppResult<Provider> {
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeQuery {
     client_id: Uuid,
+    /// Required for, and only used by, Shopify (e.g. `my-store.myshopify.com`)
+    /// — its authorize URL is per-store, chosen before the redirect.
+    shop: Option<String>,
 }
 
 /// Starts the OAuth connection wizard for one provider. The frontend calls
@@ -43,12 +50,15 @@ pub async fn authorize(
 
     let url = state
         .integrations
-        .start_authorization(&state.pool, &state.config, user_id, query.client_id, provider)
+        .start_authorization(&state.pool, &state.config, user_id, query.client_id, provider, query.shop.clone())
         .await
         .map_err(|e| match e {
             reporta_integrations::IntegrationError::NotConfigured => AppError::Validation(
                 "this integration is not configured on the server yet".to_string(),
             ),
+            reporta_integrations::IntegrationError::MissingShopDomain => {
+                AppError::Validation("enter your store's myshopify.com domain to connect Shopify".to_string())
+            }
             other => AppError::Internal(anyhow::anyhow!(other)),
         })?;
 

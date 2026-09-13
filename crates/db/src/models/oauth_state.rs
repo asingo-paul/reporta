@@ -15,11 +15,16 @@ pub struct OAuthState {
     pub provider: Provider,
     pub pkce_verifier: String,
     pub redirect_uri: String,
+    /// Shopify's authorize/token URLs are per-store (`{shop}.myshopify.com`),
+    /// chosen before the redirect — this carries it across the round trip to
+    /// the callback. `None` for every other provider.
+    pub shop_domain: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
 
 impl OAuthState {
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         pool: &PgPool,
         state: &str,
@@ -28,12 +33,13 @@ impl OAuthState {
         provider: Provider,
         pkce_verifier: &str,
         redirect_uri: &str,
+        shop_domain: Option<&str>,
         expires_at: DateTime<Utc>,
     ) -> Result<OAuthState, sqlx::Error> {
         sqlx::query_as::<_, OAuthState>(
-            r#"insert into oauth_states (state, client_id, user_id, provider, pkce_verifier, redirect_uri, expires_at)
-               values ($1, $2, $3, $4, $5, $6, $7)
-               returning id, state, client_id, user_id, provider, pkce_verifier, redirect_uri, expires_at, created_at"#,
+            r#"insert into oauth_states (state, client_id, user_id, provider, pkce_verifier, redirect_uri, shop_domain, expires_at)
+               values ($1, $2, $3, $4, $5, $6, $7, $8)
+               returning id, state, client_id, user_id, provider, pkce_verifier, redirect_uri, shop_domain, expires_at, created_at"#,
         )
         .bind(state)
         .bind(client_id)
@@ -41,6 +47,7 @@ impl OAuthState {
         .bind(provider)
         .bind(pkce_verifier)
         .bind(redirect_uri)
+        .bind(shop_domain)
         .bind(expires_at)
         .fetch_one(pool)
         .await
@@ -53,7 +60,7 @@ impl OAuthState {
     ) -> Result<Option<OAuthState>, sqlx::Error> {
         sqlx::query_as::<_, OAuthState>(
             r#"delete from oauth_states where state = $1 and expires_at > now()
-               returning id, state, client_id, user_id, provider, pkce_verifier, redirect_uri, expires_at, created_at"#,
+               returning id, state, client_id, user_id, provider, pkce_verifier, redirect_uri, shop_domain, expires_at, created_at"#,
         )
         .bind(state)
         .fetch_optional(pool)

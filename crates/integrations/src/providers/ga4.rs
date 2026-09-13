@@ -129,6 +129,7 @@ pub async fn fetch_metrics(
         page_views: get("screenPageViews") as i64,
         engaged_sessions: get("engagedSessions") as i64,
         engagement_time_secs: get("userEngagementDuration"),
+        ..RawMetrics::default()
     })
 }
 

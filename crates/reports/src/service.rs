@@ -144,7 +144,12 @@ impl ReportGenerationService {
             .iter()
             .filter_map(|s| MetricKind::from_str_opt(s))
             .collect();
-        let enabled: Vec<MetricKind> = [MetricFamily::Advertising, MetricFamily::Traffic]
+        let enabled: Vec<MetricKind> = [
+            MetricFamily::Advertising,
+            MetricFamily::Traffic,
+            MetricFamily::OrganicSearch,
+            MetricFamily::Commerce,
+        ]
             .into_iter()
             .flat_map(|family| {
                 let fam_available: Vec<MetricKind> =
@@ -339,6 +344,10 @@ fn provider_label(p: Provider) -> &'static str {
         Provider::Meta => "Meta Ads",
         Provider::Ga4 => "Google Analytics 4",
         Provider::GoogleAds => "Google Ads",
+        Provider::SearchConsole => "Google Search Console",
+        Provider::Shopify => "Shopify",
+        Provider::Tiktok => "TikTok Ads",
+        Provider::Linkedin => "LinkedIn Ads",
     }
 }
 

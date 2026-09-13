@@ -46,6 +46,14 @@ pub struct Config {
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
     pub google_ads_developer_token: Option<String>,
+    // Search Console shares the Google OAuth client above (just an extra
+    // scope) — no separate credentials needed.
+    pub shopify_client_id: Option<String>,
+    pub shopify_client_secret: Option<String>,
+    pub tiktok_app_id: Option<String>,
+    pub tiktok_app_secret: Option<String>,
+    pub linkedin_client_id: Option<String>,
+    pub linkedin_client_secret: Option<String>,
 
     pub smtp_host: Option<String>,
     pub smtp_port: u16,
@@ -142,6 +150,13 @@ impl Config {
             google_client_id: optional("GOOGLE_CLIENT_ID"),
             google_client_secret: optional("GOOGLE_CLIENT_SECRET"),
             google_ads_developer_token: optional("GOOGLE_ADS_DEVELOPER_TOKEN"),
+
+            shopify_client_id: optional("SHOPIFY_CLIENT_ID"),
+            shopify_client_secret: optional("SHOPIFY_CLIENT_SECRET"),
+            tiktok_app_id: optional("TIKTOK_APP_ID"),
+            tiktok_app_secret: optional("TIKTOK_APP_SECRET"),
+            linkedin_client_id: optional("LINKEDIN_CLIENT_ID"),
+            linkedin_client_secret: optional("LINKEDIN_CLIENT_SECRET"),
 
             smtp_host: optional("SMTP_HOST"),
             smtp_port: optional_parsed("SMTP_PORT", 587u16)?,

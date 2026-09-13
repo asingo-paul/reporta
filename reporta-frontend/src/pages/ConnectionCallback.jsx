@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
+import { providerName } from '../lib/providers';
 
 /**
  * Builds actionable guidance from the raw OAuth failure reason the backend
@@ -13,14 +14,25 @@ function diagnose(error) {
   if (!error) return null;
   const e = error.toLowerCase();
 
+  if (e.includes('store domain') || e.includes('myshopify')) {
+    return {
+      title: 'Shopify store domain required',
+      message: 'Shopify’s authorize page is per-store, so it needs the store’s domain before it can redirect.',
+      bullets: ['Enter the store domain exactly as it appears in Shopify admin, ending in .myshopify.com, then click Connect again.'],
+    };
+  }
+
   if (e.includes('not_configured') || e.includes('not configured')) {
     return {
       title: 'Integration not configured on the server',
       message:
-        'The backend is missing one or more Google credentials. This is a setup issue on your server, not with your Google account.',
+        'The backend is missing one or more credentials for this provider. This is a setup issue on your server, not with the account you tried to sign in with.',
       bullets: [
-        'Open the backend `.env` file and confirm these are set:',
-        'GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and for Google Ads also GOOGLE_ADS_DEVELOPER_TOKEN',
+        'Open the backend `.env` file and confirm the credentials for this provider are set:',
+        'Google (GA4 / Google Ads / Search Console): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and for Google Ads also GOOGLE_ADS_DEVELOPER_TOKEN',
+        'Shopify: SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET',
+        'TikTok: TIKTOK_APP_ID, TIKTOK_APP_SECRET',
+        'LinkedIn: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET',
         'Restart the API server after changing `.env`.',
       ],
     };
@@ -47,10 +59,12 @@ function diagnose(error) {
         'Google rejected the callback URL because it is not registered as an authorized redirect URI for your OAuth 2.0 client.',
       bullets: [
         'Go to Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 Web client.',
-        'Under "Authorized redirect URIs", add EXACTLY these two (must match character-for-character, including http/https and the port):',
+        'Under "Authorized redirect URIs", add EXACTLY the ones you use (must match character-for-character, including http/https and the port):',
         `${API_BASE_URL}/integrations/ga4/callback`,
         `${API_BASE_URL}/integrations/google_ads/callback`,
-        'Note: Google also requires you to have the "Google Analytics Admin API" / "Google Ads API" enabled in APIs & Services → Library.',
+        `${API_BASE_URL}/integrations/search_console/callback`,
+        'Non-Google providers (Shopify/TikTok/LinkedIn) register their own redirect URI in their own developer portal, at the same path with their provider name.',
+        'Note: Google also requires you to have the "Google Analytics Admin API" / "Google Ads API" / "Search Console API" enabled in APIs & Services → Library.',
       ],
     };
   }
@@ -182,9 +196,7 @@ export default function ConnectionCallback() {
               Successfully Connected!
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {provider === 'ga4' && 'Google Analytics 4 has been connected.'}
-              {provider === 'google_ads' && 'Google Ads has been connected.'}
-              {provider === 'meta' && 'Meta (Facebook/Instagram) has been connected.'}
+              {providerName(provider)} has been connected.
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-500">
               Redirecting back to {clientId ? 'client details' : 'clients'}…

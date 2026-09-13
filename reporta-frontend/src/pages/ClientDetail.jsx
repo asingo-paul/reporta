@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  FileText, 
+import {
+  ArrowLeft,
+  FileText,
   AlertCircle,
   CheckCircle,
   Clock,
   Download,
   Trash2,
-  BarChart2,
-  Target,
   Share2
 } from 'lucide-react';
 import { clientsAPI, reportsAPI, integrationsAPI } from '../lib/api';
+import { PROVIDER_META, PROVIDER_IDS } from '../lib/providers';
 import Navbar from '../components/Navbar';
 import PageWrapper from '../components/PageWrapper';
 import ConfirmModal from '../components/ConfirmModal';
@@ -40,6 +39,10 @@ export default function ClientDetail() {
   const [isDeletingReport, setIsDeletingReport] = useState(false);
   // `shareTarget` holds the report being shared (Email / WhatsApp).
   const [shareTarget, setShareTarget] = useState(null);
+  // Shopify's OAuth needs the store's domain before it can redirect (its
+  // authorize URL is per-store); this holds the in-progress input.
+  const [shopifyDomain, setShopifyDomain] = useState('');
+  const [showShopifyInput, setShowShopifyInput] = useState(false);
 
   useEffect(() => {
     loadClientData();
@@ -63,9 +66,9 @@ export default function ClientDetail() {
     }
   };
 
-  const handleConnect = async (provider) => {
+  const handleConnect = async (provider, shop) => {
     try {
-      const response = await integrationsAPI.authorize(provider, clientId);
+      const response = await integrationsAPI.authorize(provider, clientId, shop);
       window.location.href = response.data.url;
     } catch (error) {
       console.error('Failed to start OAuth flow:', error);
@@ -79,6 +82,15 @@ export default function ClientDetail() {
           : 'Failed to start connection. Please try again.'
       );
     }
+  };
+
+  const handleConnectShopify = () => {
+    const domain = shopifyDomain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (!domain.endsWith('.myshopify.com')) {
+      toast.error('Enter your store domain ending in .myshopify.com');
+      return;
+    }
+    handleConnect('shopify', domain);
   };
 
   // Opens the confirmation modal; the actual disconnect happens in
@@ -161,11 +173,7 @@ export default function ClientDetail() {
     );
   }
 
-  const providers = [
-    { id: 'ga4', name: 'Google Analytics 4', icon: BarChart2 },
-    { id: 'google_ads', name: 'Google Ads', icon: Target },
-    { id: 'meta', name: 'Meta (Facebook/Instagram)', icon: Share2 },
-  ];
+  const providers = PROVIDER_IDS.map((id) => ({ id, ...PROVIDER_META[id] }));
 
   const connectedProviders = connections.map(c => c.provider);
 
@@ -199,11 +207,12 @@ export default function ClientDetail() {
               Connect data sources to generate comprehensive reports
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {providers.map((provider) => {
                 const isConnected = connectedProviders.includes(provider.id);
                 const connection = connections.find(c => c.provider === provider.id);
                 const Icon = provider.icon;
+                const isShopify = provider.id === 'shopify';
 
                 return (
                   <div key={provider.id} className="border border-gray-200 dark:border-gray-800 rounded p-4 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 transition-all">
@@ -231,9 +240,32 @@ export default function ClientDetail() {
                       >
                         Disconnect
                       </button>
+                    ) : isShopify && showShopifyInput ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={shopifyDomain}
+                          onChange={(e) => setShopifyDomain(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleConnectShopify()}
+                          placeholder="your-store.myshopify.com"
+                          className="input text-sm w-full"
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={handleConnectShopify} className="btn btn-primary flex-1 text-sm">
+                            Connect
+                          </button>
+                          <button
+                            onClick={() => { setShowShopifyInput(false); setShopifyDomain(''); }}
+                            className="btn btn-secondary text-sm px-3"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <button
-                        onClick={() => handleConnect(provider.id)}
+                        onClick={() => (isShopify ? setShowShopifyInput(true) : handleConnect(provider.id))}
                         className="btn btn-primary w-full text-sm"
                       >
                         Connect

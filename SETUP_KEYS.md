@@ -83,3 +83,22 @@ stripe listen --forward-to localhost:8080/api/v1/billing/webhook
 # -> it prints a whsec_... secret; put it in STRIPE_WEBHOOK_SECRET
 ```
 
+---
+
+## 6. Data sources — one OAuth app per platform (except Search Console, which reuses Google's)
+
+Every source needs its OAuth redirect URI registered on the provider's side, at:
+`{APP_BASE_URL}/api/v1/integrations/{provider}/callback`
+
+| Provider | Keys | Get from | Notes |
+|----------|------|----------|-------|
+| Meta Ads | `META_APP_ID`, `META_APP_SECRET` | **https://developers.facebook.com/apps** — add the Marketing API product, `ads_read` permission | |
+| GA4 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | **https://console.cloud.google.com/apis/credentials** | Also enable "Google Analytics Admin API" + "Data API" |
+| Google Ads | same Google credentials + `GOOGLE_ADS_DEVELOPER_TOKEN` | **https://ads.google.com/aw/apicenter** for the developer token | Test tokens only work with test ad accounts |
+| **Search Console** | *(none — reuses the Google credentials above)* | Add the redirect URI to the same Google OAuth client + enable "Search Console API" | Cheapest to add: no new app, no approval |
+| **Shopify** | `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET` | **https://partners.shopify.com** → Apps → Create app | Scopes: `read_orders`, `read_products`. Connecting asks for the store's `.myshopify.com` domain (its authorize URL is per-store) |
+| **TikTok Ads** | `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET` | **https://business-api.tiktok.com** → My Apps → Marketing API app | TikTok's app review can take a few days |
+| **LinkedIn Ads** | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | **https://www.linkedin.com/developers/apps** | Also request **Marketing Developer Platform** access (`r_ads`, `r_ads_reporting`) — LinkedIn is historically slow/selective about approving this |
+
+Search Console, Shopify, TikTok and LinkedIn integrations have not been exercised against live accounts (no test credentials were available while building them) — they follow each platform's published API docs, but budget time to shake out any endpoint/field-name drift once real credentials are in hand.
+
